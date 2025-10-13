@@ -12,6 +12,7 @@ import time
 BASE_URL = "http://localhost:8000/api/v1"
 EXTENSION_HEADERS = {
     "X-Extension-Client": "privacy-inspector",
+     "Origin": "chrome-extension://example-extension-id-replace-this",
     "Content-Type": "application/json"
 }
 

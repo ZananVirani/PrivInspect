@@ -33,6 +33,10 @@ async def validate_extension_headers(request: Request) -> dict:
     Validate required extension headers and origin.
     This dependency ensures requests come from the authorized extension.
     """
+    # Log request details for security monitoring
+    user_agent = request.headers.get("user-agent", "unknown")
+    logger.info(f"Request from {request.client.host}, User-Agent: {user_agent}")
+    
     # Check required extension client header
     client_header = request.headers.get("X-Extension-Client")
     if client_header != settings.EXTENSION_CLIENT_HEADER:
@@ -50,7 +54,7 @@ async def validate_extension_headers(request: Request) -> dict:
     if settings.ALLOWED_ORIGIN != "*" and origin != settings.ALLOWED_ORIGIN:
         logger.warning(
             f"Invalid origin from {request.client.host}. "
-            f"Expected: {settings.ALLOWED_ORIGIN}, Got: {origin}"
+            f"Expected: {settings.ALLOWED_ORIGIN}, Got: {origin}, UA: {user_agent}"
         )
         raise HTTPException(
             status_code=403,
@@ -63,5 +67,6 @@ async def validate_extension_headers(request: Request) -> dict:
     return {
         "client_header": client_header,
         "origin": origin,
+        "user_agent": user_agent,
         "validated": True
     }

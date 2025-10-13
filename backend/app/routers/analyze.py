@@ -5,6 +5,7 @@ from app.config import settings
 from app.middleware import validate_extension_headers
 from app.routers.auth import verify_jwt_token
 from app.models import AnalyzeRequest, AnalyzeResponse
+from app.security.extension_auth import validate_extension_request
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -43,6 +44,7 @@ async def analyze_privacy_data(data: dict) -> dict:
 async def analyze_website_privacy(
     analyze_data: AnalyzeRequest,
     request: Request,
+    # extension_validation: dict = Depends(validate_extension_request),  # Temporarily disabled
     _: dict = Depends(validate_extension_headers),
     token_payload: dict = Depends(verify_jwt_token)
 ):
@@ -55,6 +57,7 @@ async def analyze_website_privacy(
         logger.info(
             f"Analysis request from IP: {request.client.host}, "
             f"URL: {analyze_data.url}, "
+            # f"Extension ID: {extension_validation.get('extension_id', 'unknown')}, "  # Temporarily disabled
             f"Token type: {token_payload.get('type', 'unknown')}"
         )
         
