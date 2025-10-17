@@ -2,10 +2,10 @@
   "manifest_version": 3,
   "name": "Privacy Inspector Demo",
   "version": "1.0",
-  "description": "Test extension that displays Hello World and requests permissions for future privacy analysis.",
+  "description": "Privacy analysis extension built with React and Vite",
 
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup/popup.html",
     "default_title": "Privacy Inspector Demo",
     "default_icon": {
       "16": "icons/fraud_icon_16.webp",
@@ -16,13 +16,14 @@
   },
 
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background/background.ts",
+    "type": "module"
   },
 
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["src/content/content.ts"],
       "run_at": "document_end"
     }
   ],
@@ -38,16 +39,9 @@
 
   "host_permissions": ["<all_urls>"],
 
-  "icons": {
-    "16": "icons/fraud_icon_16.webp",
-    "32": "icons/fraud_icon_32.webp",
-    "48": "icons/fraud_icon_48.webp",
-    "128": "icons/fraud_icon_128.webp"
-  },
-
   "web_accessible_resources": [
     {
-      "resources": ["content.js"],
+      "resources": ["src/content/content.ts", "assets/*"],
       "matches": ["<all_urls>"]
     }
   ]

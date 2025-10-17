@@ -1,9 +1,9 @@
-/**
- * Background Service Worker for Privacy Inspector Demo
- * This runs in the background and handles extension events
- */
+// Import hot reload for development
+import "../utils/hotReload";
 
-console.log("Background service worker loaded - Privacy Inspector Demo v1.0");
+console.log(
+  "Background service worker loaded - Privacy Inspector Demo v1.0 (React + Vite)"
+);
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener((details) => {
@@ -27,8 +27,9 @@ chrome.runtime.onStartup.addListener(() => {
 // Listen for messages from content scripts or popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("Background received message:", message);
+  console.log("Sender ID:", sender.id);
 
-  // Handle different message types for future privacy analysis features
+  // Handle different message types
   switch (message.type) {
     case "PING":
       sendResponse({ status: "Background service worker is active" });
@@ -36,6 +37,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "GET_EXTENSION_ID":
       sendResponse({ extensionId: chrome.runtime.id });
+      break;
+
+    case "ANALYZE_PAGE":
+      console.log("Privacy analysis requested for:", message.url);
+      sendResponse({ status: "Analysis queued" });
       break;
 
     default:
@@ -46,7 +52,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // Keep message channel open for async responses
 });
 
-// Log when background script is ready
 console.log(
   "Background service worker ready - Extension ID:",
   chrome.runtime.id

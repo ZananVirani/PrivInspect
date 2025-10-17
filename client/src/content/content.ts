@@ -1,11 +1,6 @@
-/**
- * Content Script for Privacy Inspector Demo
- * This runs on every webpage and will eventually collect privacy data
- */
-
 console.log("Content script loaded on:", window.location.href);
 
-// Simple test to verify content script is working
+// Initialize content script
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initializeContentScript);
 } else {
@@ -13,7 +8,9 @@ if (document.readyState === "loading") {
 }
 
 function initializeContentScript() {
-  console.log("Privacy Inspector Demo - Content script initialized");
+  console.log(
+    "Privacy Inspector Demo - Content script initialized (React + Vite version)"
+  );
   console.log("Page title:", document.title);
   console.log("Current URL:", window.location.href);
 
@@ -26,8 +23,7 @@ function initializeContentScript() {
     }
   });
 
-  // Future privacy analysis will happen here
-  // For now, just log basic page information
+  // Collect and store basic page information
   logBasicPageInfo();
 }
 
@@ -42,8 +38,7 @@ function logBasicPageInfo() {
 
   console.log("Basic page info collected:", pageInfo);
 
-  // This is where we'll eventually send data to the privacy analysis API
-  // For now, just store it locally for testing
+  // Store data locally for testing
   chrome.storage.local.get(["pageAnalysis"], (result) => {
     const existingData = result.pageAnalysis || [];
     existingData.push(pageInfo);
@@ -60,7 +55,7 @@ function logBasicPageInfo() {
 // Listen for messages from popup or background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("Content script received message:", message);
-
+  sender.documentId;
   switch (message.type) {
     case "GET_PAGE_INFO":
       sendResponse({
@@ -71,9 +66,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       break;
 
+    case "COLLECT_PRIVACY_DATA":
+      const privacyData = collectPrivacyData();
+      sendResponse(privacyData);
+      break;
+
     default:
       sendResponse({ error: "Unknown message type" });
   }
 
   return true;
 });
+
+function collectPrivacyData() {
+  return {
+    cookies: document.cookie.split(";").filter((c) => c.trim()),
+    scripts: Array.from(document.querySelectorAll("script")).map((script) => ({
+      src: script.src,
+      inline: !script.src,
+      type: script.type || "text/javascript",
+    })),
+    trackers: [], // Future: Detect tracking scripts
+    permissions: [], // Future: Check requested permissions
+    timestamp: new Date().toISOString(),
+  };
+}

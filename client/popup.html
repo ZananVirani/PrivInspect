@@ -3,50 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Privacy Inspector Demo</title>
-    <link rel="stylesheet" href="style.css" />
+    <title>Privacy Inspector</title>
   </head>
   <body>
-    <div class="container">
-      <div class="header">
-        <h1>Privacy Inspector Demo</h1>
-        <p class="version">v1.0</p>
-      </div>
-
-      <div class="main-content">
-        <div id="hello-world" class="hello-message">Hello World</div>
-
-        <div class="info-section">
-          <h3>Extension Status</h3>
-          <div id="status-info">
-            <p>Extension ID: <span id="extension-id">Loading...</span></p>
-            <p>Background: <span id="background-status">Checking...</span></p>
-            <p>Permissions: <span id="permissions-status">Checking...</span></p>
-          </div>
-        </div>
-
-        <div class="current-page">
-          <h3>Current Page Info</h3>
-          <div id="page-info">
-            <p>URL: <span id="current-url">Loading...</span></p>
-            <p>Title: <span id="page-title">Loading...</span></p>
-            <p>Cookies: <span id="cookie-count">0</span></p>
-            <p>Scripts: <span id="script-count">0</span></p>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button id="test-background">Test Background</button>
-          <button id="refresh-info">Refresh Page Info</button>
-          <button id="clear-storage">Clear Test Data</button>
-        </div>
-
-        <div class="footer">
-          <p>Ready for privacy analysis features!</p>
-        </div>
-      </div>
-    </div>
-
-    <script src="popup.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/popup/main.tsx"></script>
   </body>
 </html>
