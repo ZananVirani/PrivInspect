@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import {
   Shield,
-  Eye,
   RefreshCw,
   Trash2,
   Activity,
@@ -202,8 +201,12 @@ function App() {
       <div className="bg-white text-gray-800 p-5 flex-1 min-h-[400px]">
         {/* Hello World Section */}
         <div className="text-center mb-6">
-          <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 animate-pulse">
-            Hello World
+          <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 animate-pulse flex items-center justify-center gap-3">
+            <Shield className="w-10 h-10 text-blue-600" />
+            PrivInspect
+          </div>
+          <div className="text-sm font-medium text-gray-600">
+            ML-Powered Privacy Inspector
           </div>
         </div>
 
