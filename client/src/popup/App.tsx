@@ -196,7 +196,7 @@ function App() {
   };
 
   return (
-    <div className="w-96 min-h-[500px] bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white">
+    <div className="w-96 min-h-[500px] max-w-96 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white custom-scrollbar">
       {/* Header */}
       <div className="p-5 text-center">
         <div className="flex items-center justify-center gap-2 mb-2">
@@ -211,7 +211,7 @@ function App() {
         {/* Hello World Section */}
         <div className="text-center mb-6">
           <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 animate-pulse">
-            Hello Worldurfienfiur
+            Hello World
           </div>
           <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
             <Eye className="w-4 h-4" />
