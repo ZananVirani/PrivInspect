@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Info,
 } from "lucide-react";
 
 interface PageInfo {
@@ -197,25 +198,12 @@ function App() {
 
   return (
     <div className="w-96 min-h-[500px] max-w-96 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white custom-scrollbar">
-      {/* Header */}
-      <div className="p-5 text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Shield className="w-6 h-6" />
-          <h1 className="text-xl font-bold">Privacy Inspector</h1>
-        </div>
-        <p className="text-sm opacity-80">React + Vite Edition v1.0</p>
-      </div>
-
       {/* Main Content */}
-      <div className="bg-white text-gray-800 rounded-t-3xl p-5 flex-1 min-h-[400px]">
+      <div className="bg-white text-gray-800 p-5 flex-1 min-h-[400px]">
         {/* Hello World Section */}
         <div className="text-center mb-6">
           <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 animate-pulse">
             Hello World
-          </div>
-          <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
-            <Eye className="w-4 h-4" />
-            <span>React UI Loaded Successfully!</span>
           </div>
         </div>
 
@@ -343,12 +331,22 @@ function App() {
 
         {/* Footer */}
         <div className="text-center pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-600 italic flex items-center justify-center gap-1">
-            <Eye className="w-3 h-3" />
-            Ready for privacy analysis features!
+          <p className="text-xs text-blue-600 italic flex items-center justify-center">
+            <button
+              className="flex items-center gap-1"
+              onClick={() => console.log("Disclaimer clicked")}
+            >
+              <Info className="w-3 h-3" />
+              Click here for disclaimer
+            </button>
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Built with React + Vite + Tailwind CSS
+            <a
+              href="https://www.flaticon.com/free-icons/fraud"
+              title="Fraud Icon"
+            >
+              Browser Extension icon created by Smashicons - Flaticon
+            </a>
           </p>
         </div>
       </div>
