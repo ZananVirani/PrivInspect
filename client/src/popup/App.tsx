@@ -204,12 +204,6 @@ function App() {
     }
   };
 
-  const truncateText = (text: string, maxLength: number = 30) => {
-    return text.length > maxLength
-      ? `${text.substring(0, maxLength)}...`
-      : text;
-  };
-
   return (
     <div className="w-96 min-h-[500px] max-w-96 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white custom-scrollbar">
       {/* Main Content */}
@@ -340,29 +334,31 @@ function App() {
 
           <div className="space-y-2">
             <div className="flex justify-between items-start">
-              <span className="text-xs text-gray-600">URL:</span>
+              <span className="text-xs text-gray-600 mr-1 font-bold">URL:</span>
               <span
-                className={`text-xs text-right max-w-48 truncate font-mono ${
+                className={`text-xs text-right truncate font-mono ${
                   !extensionStatus.backgroundActive ||
                   !extensionStatus.permissionsGranted
                     ? "text-gray-400 italic"
                     : ""
                 }`}
               >
-                {truncateText(pageInfo.url, 25)}
+                {pageInfo.url}
               </span>
             </div>
             <div className="flex justify-between items-start">
-              <span className="text-xs text-gray-600">Title:</span>
+              <span className="text-xs text-gray-600 mr-1 font-bold">
+                Title:
+              </span>
               <span
-                className={`text-xs text-right max-w-48 truncate ${
+                className={`text-xs text-right truncate ${
                   !extensionStatus.backgroundActive ||
                   !extensionStatus.permissionsGranted
                     ? "text-gray-400 italic"
                     : ""
                 }`}
               >
-                {truncateText(pageInfo.title, 20)}
+                {pageInfo.title}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-3">
