@@ -181,14 +181,6 @@ function App() {
     setExtensionStatus((prev) => ({ ...prev, backgroundActive }));
   };
 
-  const StatusIcon = ({ active }: { active: boolean }) => {
-    return active ? (
-      <CheckCircle className="w-4 h-4 text-green-500" />
-    ) : (
-      <XCircle className="w-4 h-4 text-red-500" />
-    );
-  };
-
   const truncateText = (text: string, maxLength: number = 30) => {
     return text.length > maxLength
       ? `${text.substring(0, maxLength)}...`
@@ -216,48 +208,89 @@ function App() {
             <Activity className="w-4 h-4" />
             Extension Status
           </h3>
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-600">Extension ID:</span>
-              <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">
-                {truncateText(extensionStatus.extensionId, 16)}
-              </code>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-600">Background Worker:</span>
-              <div className="flex items-center gap-1">
-                <StatusIcon active={extensionStatus.backgroundActive} />
-                <span
-                  className={`text-xs font-medium ${
-                    extensionStatus.backgroundActive
-                      ? "text-green-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {extensionStatus.backgroundActive ? "Active" : "Inactive"}
+          <div className="space-y-3">
+            {/* Status Indicators */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">
+                  Background Worker:
                 </span>
+                <div className="flex items-center gap-1">
+                  {extensionStatus.backgroundActive ? (
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-500" />
+                  )}
+                  <span
+                    className={`text-xs font-medium ${
+                      extensionStatus.backgroundActive
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {extensionStatus.backgroundActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-gray-600">Permissions:</span>
+                <div className="flex items-center gap-1">
+                  {extensionStatus.permissionsGranted ? (
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-orange-500" />
+                  )}
+                  <span
+                    className={`text-xs font-medium ${
+                      extensionStatus.permissionsGranted
+                        ? "text-green-600"
+                        : "text-orange-600"
+                    }`}
+                  >
+                    {extensionStatus.permissionsGranted
+                      ? "All Granted"
+                      : "Some Missing"}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-600">Permissions:</span>
-              <div className="flex items-center gap-1">
-                {extensionStatus.permissionsGranted ? (
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-orange-500" />
+
+            {/* User-Friendly Messages */}
+            <div className="space-y-2">
+              {/* Show success message if everything is working */}
+              {extensionStatus.backgroundActive &&
+                extensionStatus.permissionsGranted && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <span className="text-sm font-medium text-green-700">
+                      Setup is ready for analysis
+                    </span>
+                  </div>
                 )}
-                <span
-                  className={`text-xs font-medium ${
-                    extensionStatus.permissionsGranted
-                      ? "text-green-600"
-                      : "text-orange-600"
-                  }`}
-                >
-                  {extensionStatus.permissionsGranted
-                    ? "All Granted"
-                    : "Some Missing"}
-                </span>
-              </div>
+
+              {/* Show background worker error */}
+              {!extensionStatus.backgroundActive && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-200">
+                  <XCircle className="w-5 h-5 text-red-500" />
+                  <span className="text-sm font-medium text-red-700">
+                    Unable to analyze this page. Please refresh and try again.
+                  </span>
+                </div>
+              )}
+
+              {/* Show permissions error */}
+              {!extensionStatus.permissionsGranted && (
+                <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                  <AlertCircle className="w-5 h-5 text-orange-500" />
+                  <button
+                    className="text-sm font-medium text-orange-700 hover:text-orange-800 hover:underline"
+                    onClick={() => chrome.runtime.openOptionsPage()}
+                  >
+                    Not all permissions are granted; click here to grant
+                    permissions
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
