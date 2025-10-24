@@ -165,6 +165,45 @@ function App() {
     }
   };
 
+  const requestPermissions = async () => {
+    const requiredPermissions = [
+      "activeTab",
+      "scripting",
+      "cookies",
+      "storage",
+      "webRequest",
+      "webNavigation",
+    ];
+
+    const hostPermissions = ["<all_urls>"];
+
+    try {
+      const granted = await chrome.permissions.request({
+        permissions: requiredPermissions,
+        origins: hostPermissions,
+      });
+
+      if (granted) {
+        // Update extension status after granting permissions
+        const permissionsGranted = await checkPermissions();
+        setExtensionStatus((prev) => ({ ...prev, permissionsGranted }));
+
+        // If permissions are now granted and background is active, reload page info
+        if (permissionsGranted && extensionStatus.backgroundActive) {
+          loadCurrentPageInfo(
+            extensionStatus.backgroundActive,
+            permissionsGranted
+          );
+        }
+      }
+
+      return granted;
+    } catch (error) {
+      console.error("Error requesting permissions:", error);
+      return false;
+    }
+  };
+
   const truncateText = (text: string, maxLength: number = 30) => {
     return text.length > maxLength
       ? `${text.substring(0, maxLength)}...`
@@ -267,8 +306,8 @@ function App() {
                 <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
                   <AlertCircle className="w-5 h-5 text-orange-500" />
                   <button
-                    className="text-sm font-medium text-orange-700 hover:text-orange-800 hover:underline"
-                    onClick={() => chrome.runtime.openOptionsPage()}
+                    className="text-sm font-medium text-orange-700 hover:text-orange-800 hover:underline transition-colors duration-200"
+                    onClick={requestPermissions}
                   >
                     Not all permissions are granted; click here to grant
                     permissions
