@@ -53,14 +53,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 function collectPrivacyData() {
   return {
-    cookies: document.cookie.split(";").filter((c) => c.trim()),
+    page_url: window.location.href,
+    page_title: document.title,
+    cookies: document.cookie
+      .split(";")
+      .map((c) => c.trim())
+      .filter(Boolean),
     scripts: Array.from(document.querySelectorAll("script")).map((script) => ({
-      src: script.src,
+      src: script.src || null,
       inline: !script.src,
       type: script.type || "text/javascript",
+      content_preview: script.src
+        ? null
+        : script.textContent?.substring(0, 100),
     })),
-    trackers: [],
-    permissions: [],
+    forms: Array.from(document.querySelectorAll("form")).map((form) => ({
+      action: form.action || "",
+      method: form.method || "get",
+      inputs: Array.from(form.querySelectorAll("input")).map((input) => ({
+        type: input.type,
+        name: input.name,
+        required: input.required,
+      })),
+    })),
     timestamp: new Date().toISOString(),
   };
 }

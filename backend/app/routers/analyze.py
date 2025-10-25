@@ -52,27 +52,33 @@ async def analyze_website_privacy(
     Analyze website privacy data from the browser extension.
     Requires valid JWT token and extension headers.
     """
-    try:
-        # Log the analysis request (without sensitive data)
-        logger.info(
-            f"Analysis request from IP: {request.client.host}, "
-            f"URL: {analyze_data.url}, "
-            # f"Extension ID: {extension_validation.get('extension_id', 'unknown')}, "  # Temporarily disabled
-            f"Token type: {token_payload.get('type', 'unknown')}"
-        )
+    logger.info("Hiiiii")
+    return AnalyzeResponse(
+        privacy_score=1,
+        cookies_analyzed=432,
+        scripts_analyzed=34342,
+    )
+    # try:
+    #     # Log the analysis request (without sensitive data)
+    #     logger.info(
+    #         f"Analysis request from IP: {request.client.host}, "
+    #         f"URL: {analyze_data.url}, "
+    #         # f"Extension ID: {extension_validation.get('extension_id', 'unknown')}, "  # Temporarily disabled
+    #         f"Token type: {token_payload.get('type', 'unknown')}"
+    #     )
         
-        # Perform the privacy analysis
-        analysis_result = await analyze_privacy_data({
-            "cookies": analyze_data.cookies,
-            "scripts": analyze_data.scripts,
-            "url": analyze_data.url
-        })
+    #     # Perform the privacy analysis
+    #     analysis_result = await analyze_privacy_data({
+    #         "cookies": analyze_data.cookies,
+    #         "scripts": analyze_data.scripts,
+    #         "url": analyze_data.url
+    #     })
         
-        return AnalyzeResponse(**analysis_result)
+    #     return AnalyzeResponse(**analysis_result)
     
-    except Exception as e:
-        logger.error(f"Error during analysis: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error during analysis"
-        )
+    # except Exception as e:
+    #     logger.error(f"Error during analysis: {e}")
+    #     raise HTTPException(
+    #         status_code=500,
+    #         detail="Internal server error during analysis"
+    #     )

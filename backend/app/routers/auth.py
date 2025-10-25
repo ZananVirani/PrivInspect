@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from app.config import settings
 from app.middleware import validate_extension_headers
@@ -12,10 +12,11 @@ security = HTTPBearer()
 
 def create_jwt_token() -> str:
     """Create a JWT token with 15-minute expiry using the current JWT secret."""
-    expiry = datetime.now() + timedelta(minutes=15)
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(minutes=15)
     payload = {
-        "exp": expiry,
-        "iat": datetime.now(),
+        "exp": int(expiry.timestamp()),
+        "iat": int(now.timestamp()),
         "type": "access_token",
         "secret_version": "current"  # Track which secret was used
     }
@@ -30,12 +31,11 @@ def verify_jwt_token(credentials: HTTPAuthorizationCredentials = Depends(securit
     """
     token = credentials.credentials
     jwt_secrets = settings.get_jwt_secrets()
-    
     # Try each secret in order (current first, then old secrets)
     for i, secret in enumerate(jwt_secrets):
         try:
             payload = jwt.decode(token, secret, algorithms=["HS256"])
-            
+
             # Log which secret was used for monitoring
             secret_type = "current" if i == 0 else "old"
             if i > 0:  # Only log when using old secret
@@ -67,7 +67,7 @@ async def authenticate(
     """
     try:
         token = create_jwt_token()
-        
+
         logger.info(
             f"JWT token issued for IP: {request.client.host}, "
             f"User-Agent: {request.headers.get('user-agent', 'unknown')}"
@@ -76,7 +76,7 @@ async def authenticate(
         return {
             "access_token": token,
             "token_type": "bearer",
-            "expires_in": 900  # 15 minutes in seconds
+            "expires_in": 900
         }
     
     except Exception as e:

@@ -11,6 +11,11 @@ import {
   AlertCircle,
   Info,
 } from "lucide-react";
+import {
+  ApiService,
+  type PageAnalysisData,
+  type AnalysisResponse,
+} from "../utils/apiService";
 
 interface PageInfo {
   url: string;
@@ -20,6 +25,7 @@ interface PageInfo {
 }
 
 interface ExtensionStatus {
+  extensionId: string;
   backgroundActive: boolean;
   permissionsGranted: boolean;
 }
@@ -33,38 +39,113 @@ function App() {
   });
 
   const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>({
+    extensionId: "Loading...",
     backgroundActive: false,
     permissionsGranted: false,
   });
 
   const [loading, setLoading] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [analysisResults, setAnalysisResults] =
+    useState<AnalysisResponse | null>(null);
 
   useEffect(() => {
     initializePopup();
   }, []);
 
   const initializePopup = async () => {
-    setLoading(true);
-
     try {
+      // Get extension ID
+      const extensionId = chrome.runtime.id;
+
       // Test background communication
       const backgroundActive = await testBackgroundCommunication();
 
       // Check permissions
       const permissionsGranted = await checkPermissions();
 
+      // Update extension status
       setExtensionStatus({
+        extensionId,
         backgroundActive,
         permissionsGranted,
       });
 
       // Load page info
       await loadCurrentPageInfo(backgroundActive, permissionsGranted);
+
+      // Authenticate and analyze if extension is ready
+      if (backgroundActive && permissionsGranted) {
+        await authenticateAndAnalyze();
+      }
     } catch (error) {
       console.error("Error initializing popup:", error);
     }
+  };
 
-    setLoading(false);
+  const getValidToken = async (): Promise<string | null> => {
+    try {
+      // Check for existing token
+      const existingToken = await ApiService.getStoredToken();
+
+      if (existingToken && ApiService.isTokenValid(existingToken)) {
+        return existingToken;
+      }
+
+      // Get new token if none exists or expired
+      const authResponse = await ApiService.authenticate();
+      await ApiService.storeToken(authResponse.access_token);
+
+      return authResponse.access_token;
+    } catch (error) {
+      console.error("Authentication failed:", error);
+      return null;
+    }
+  };
+
+  const authenticateAndAnalyze = async () => {
+    try {
+      setLoading(true);
+
+      // Get or refresh JWT token
+      const token = await getValidToken();
+
+      if (!token) {
+        setAnalysisResults({ error: "Authentication failed" });
+        return;
+      }
+
+      // Collect data from current tab
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (!tab.id) {
+        setAnalysisResults({ error: "No active tab found" });
+        return;
+      }
+
+      const results = await chrome.tabs.sendMessage(tab.id, {
+        type: "COLLECT_PRIVACY_DATA",
+      });
+
+      if (!results) {
+        setAnalysisResults({ error: "Failed to collect page data" });
+        return;
+      }
+
+      // Send to backend for analysis
+      const analysisResult = await ApiService.analyzePrivacy(results, token);
+      setAnalysisResults(analysisResult);
+      console.log("Analysis Result:", analysisResult);
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      setAnalysisResults({
+        error: error instanceof Error ? error.message : "Analysis failed",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const testBackgroundCommunication = (): Promise<boolean> => {
@@ -188,12 +269,15 @@ function App() {
         const permissionsGranted = await checkPermissions();
         setExtensionStatus((prev) => ({ ...prev, permissionsGranted }));
 
-        // If permissions are now granted and background is active, reload page info
+        // If permissions are now granted and background is active, reload page info and authenticate
         if (permissionsGranted && extensionStatus.backgroundActive) {
           loadCurrentPageInfo(
             extensionStatus.backgroundActive,
             permissionsGranted
           );
+
+          // Trigger authentication and analysis now that we have permissions
+          await authenticateAndAnalyze();
         }
       }
 

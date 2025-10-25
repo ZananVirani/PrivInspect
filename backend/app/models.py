@@ -6,17 +6,13 @@ class CookieData(BaseModel):
     name: str
     value: str
     domain: str
-    path: str = "/"
-    secure: bool = False
-    httpOnly: bool = False
-    sameSite: Optional[str] = None
 
 class ScriptData(BaseModel):
     """Model for script data from browser extension."""
-    src: str
-    type: str = "text/javascript"
-    async_load: bool = False
-    defer: bool = False
+    src: Optional[str]
+    content_preview: Optional[str]
+    inline: bool
+    type: Optional[str]
 
 class AnalyzeRequest(BaseModel):
     """Request model for privacy analysis."""
@@ -30,8 +26,6 @@ class AnalyzeResponse(BaseModel):
     privacy_score: int
     cookies_analyzed: int
     scripts_analyzed: int
-    findings: List[str]
-    recommendations: List[str]
 
 class AuthResponse(BaseModel):
     """Response model for authentication endpoint."""
