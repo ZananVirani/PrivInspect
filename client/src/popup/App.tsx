@@ -67,17 +67,10 @@ function App() {
         !tab.url.startsWith("chrome://") &&
         !tab.url.startsWith("chrome-extension://")
       ) {
-        console.log("🔴 Sending GET_WEB_REQUEST_COUNT message to tab:", tab.id);
-
         // First try to ping the content script to see if it's ready
         chrome.tabs.sendMessage(tab.id, { type: "PING" }, (_pingResponse) => {
           if (chrome.runtime.lastError) {
-            console.log(
-              "🟡 Content script not ready:",
-              chrome.runtime.lastError.message
-            );
-            // Content script should be automatically injected by manifest
-            // No need to manually inject, just wait for it to be ready
+            // Content script not ready yet, just skip this update
             return;
           }
 
@@ -87,30 +80,19 @@ function App() {
             { type: "GET_WEB_REQUEST_COUNT" },
             (response) => {
               if (chrome.runtime.lastError) {
-                console.log(
-                  "🔴 Chrome runtime error:",
+                console.warn(
+                  "Failed to get web request count:",
                   chrome.runtime.lastError.message
                 );
               } else if (response && response.webRequestCount !== undefined) {
-                console.log(
-                  "🟢 Received web request count:",
-                  response.webRequestCount
-                );
                 setPageInfo((prev) => ({
                   ...prev,
                   webRequestCount: response.webRequestCount,
                 }));
-              } else {
-                console.log(
-                  "🟡 No response or undefined webRequestCount:",
-                  response
-                );
               }
             }
           );
         });
-      } else {
-        console.log("🔴 No active tab found or invalid URL:", tab?.url);
       }
     } catch (error) {
       console.error("Error updating web request count:", error);
