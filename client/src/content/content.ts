@@ -1,4 +1,11 @@
-// Track network requests
+// Import tracker detection utilities
+import {
+  getDomainFromUrl,
+  isThirdPartyDomain,
+  isKnownTracker,
+} from "../utils/trackerDetection";
+
+// Track network requests (fallback for content script level tracking)
 const networkRequests: Array<{
   url: string;
   method: string;
@@ -6,7 +13,41 @@ const networkRequests: Array<{
   timestamp: string;
 }> = [];
 
-// Override fetch to monitor network requests
+// Analytics globals detection for feature 7: has_analytics_global
+interface AnalyticsFlags {
+  has_google_analytics: boolean;
+  has_gtag: boolean;
+  has_facebook_pixel: boolean;
+  has_data_layer: boolean;
+  detected_analytics: string[];
+}
+
+// Fingerprinting detection for feature 9: fingerprinting_flag
+interface FingerprintingFlags {
+  canvas_fingerprinting: boolean;
+  audio_fingerprinting: boolean;
+  webgl_fingerprinting: boolean;
+  font_fingerprinting: boolean;
+  detected_methods: string[];
+}
+
+let analyticsFlags: AnalyticsFlags = {
+  has_google_analytics: false,
+  has_gtag: false,
+  has_facebook_pixel: false,
+  has_data_layer: false,
+  detected_analytics: [],
+};
+
+let fingerprintingFlags: FingerprintingFlags = {
+  canvas_fingerprinting: false,
+  audio_fingerprinting: false,
+  webgl_fingerprinting: false,
+  font_fingerprinting: false,
+  detected_methods: [],
+};
+
+// Override fetch to monitor network requests (fallback)
 const originalFetch = window.fetch;
 window.fetch = function (...args) {
   const url = args[0] instanceof Request ? args[0].url : (args[0] as string);
@@ -21,11 +62,10 @@ window.fetch = function (...args) {
   };
 
   networkRequests.push(requestData);
-
   return originalFetch.apply(this, args);
 };
 
-// Override XMLHttpRequest to monitor AJAX requests
+// Override XMLHttpRequest to monitor AJAX requests (fallback)
 const originalXHROpen = XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open = function (
   method: string,
@@ -42,185 +82,45 @@ XMLHttpRequest.prototype.open = function (
   };
 
   networkRequests.push(requestData);
-
   return originalXHROpen.call(this, method, url, async, username, password);
 };
 
-// Initialize when page loads or immediately if already loaded
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeContentScript);
-} else {
-  initializeContentScript();
-}
-
-// Also initialize on document ready for earlier injection
-if (document.readyState !== "complete") {
-  document.addEventListener("load", () => {
-    console.log(
-      "Document fully loaded, ensuring content script is initialized"
-    );
-    initializeContentScript();
-  });
-}
-
-function initializeContentScript() {
-  console.log(
-    "PrivInspect Content Script Initialized on:",
-    window.location.href
-  );
-  logBasicPageInfo();
-}
-
-async function getCookiesUsingChromeAPI(): Promise<
-  Array<{ name: string; value: string; domain: string }>
-> {
-  const currentDomain = new URL(window.location.href).hostname;
-  console.log("Attempting to get cookies for domain:", currentDomain);
-
-  try {
-    // Content scripts cannot access chrome.cookies directly
-    // We need to send a message to the background script or popup
-    return new Promise((resolve) => {
-      if (chrome.runtime && chrome.runtime.sendMessage) {
-        console.log("Sending message to background script for cookies");
-        chrome.runtime.sendMessage(
-          { type: "GET_COOKIES", domain: currentDomain },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              console.warn(
-                "Chrome API not available in content script, falling back to document.cookie:",
-                chrome.runtime.lastError
-              );
-              // Fallback to document.cookie parsing
-              resolve(parseCookiesFromDocument());
-            } else if (response && response.cookies) {
-              console.log(
-                "Received cookies from background script:",
-                response.cookies
-              );
-              resolve(response.cookies);
-            } else {
-              console.log("No response from background script, using fallback");
-              resolve(parseCookiesFromDocument());
-            }
-          }
-        );
-      } else {
-        console.log(
-          "Chrome runtime not available, using document.cookie fallback"
-        );
-        resolve(parseCookiesFromDocument());
-      }
-    });
-  } catch (error) {
-    console.warn(
-      "Error accessing Chrome API, falling back to document.cookie:",
-      error
-    );
-    return parseCookiesFromDocument();
-  }
-}
-
-function parseCookiesFromDocument(): Array<{
-  name: string;
-  value: string;
-  domain: string;
-}> {
-  const currentDomain = new URL(window.location.href).hostname;
-  const cookieString = document.cookie;
-
-  console.log("Parsing cookies from document.cookie:", cookieString);
-
-  if (!cookieString) {
-    console.log("No cookies found in document.cookie");
-    return [];
-  }
-
-  const parsedCookies = cookieString
-    .split(";")
-    .map((cookie) => cookie.trim())
-    .filter(Boolean)
-    .map((cookie) => {
-      const [name, ...valueParts] = cookie.split("=");
-      return {
-        name: name?.trim() || "",
-        value: valueParts.join("=")?.trim() || "",
-        domain: currentDomain,
-      };
-    });
-
-  console.log("Parsed cookies from document:", parsedCookies);
-  return parsedCookies;
-}
-
-async function logBasicPageInfo() {
-  try {
-    const cookies = await getCookiesUsingChromeAPI();
-    console.log("Collected cookies:", cookies.length, cookies);
-
-    const pageInfo = {
-      url: window.location.href,
-      title: document.title,
-      cookieCount: cookies.length,
-      scriptCount: document.querySelectorAll("script").length,
-      timestamp: new Date().toISOString(),
-    };
-
-    chrome.storage.local.get(["pageAnalysis"], (result) => {
-      const existingData = result.pageAnalysis || [];
-      existingData.push(pageInfo);
-      const recentData = existingData.slice(-10);
-      chrome.storage.local.set({ pageAnalysis: recentData });
-    });
-  } catch (error) {
-    console.error("Error collecting page info:", error);
-  }
-}
-
-// Handle popup requests
+// Message handler for popup communication
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) {
     console.warn("Rejected message from foreign extension:", sender.id);
-    return; // Ignore the message
+    return;
   }
+
   switch (message.type) {
     case "PING":
       sendResponse({ status: "PONG" });
       break;
 
     case "GET_PAGE_INFO":
-      getCookiesUsingChromeAPI()
-        .then((cookies) => {
-          sendResponse({
-            url: window.location.href,
-            title: document.title,
-            cookieCount: cookies.length,
-            scriptCount: document.querySelectorAll("script").length,
-            webRequestCount: networkRequests.length,
-          });
-        })
-        .catch((error) => {
-          console.error("Error getting page info:", error);
-          sendResponse({
-            url: window.location.href,
-            title: document.title,
-            cookieCount: 0,
-            scriptCount: document.querySelectorAll("script").length,
-            webRequestCount: networkRequests.length,
-          });
-        });
-      return true; // Keep message channel open for async response
+      // Return basic page info for popup display
+      const cookieCount = document.cookie
+        ? document.cookie.split(";").length
+        : 0;
+      const scriptCount = document.querySelectorAll("script").length;
+      sendResponse({
+        cookieCount,
+        scriptCount,
+        webRequestCount: networkRequests.length,
+      });
+      break;
 
     case "COLLECT_PRIVACY_DATA":
-      collectPrivacyData()
+      // This will be implemented to collect comprehensive data
+      collectComprehensivePrivacyData()
         .then((data) => {
           sendResponse(data);
         })
         .catch((error) => {
-          console.error("Error collecting privacy data:", error);
+          console.error("Error collecting comprehensive privacy data:", error);
           sendResponse({ error: "Failed to collect privacy data" });
         });
-      return true; // Keep message channel open for async response
+      return true;
 
     case "GET_WEB_REQUEST_COUNT":
       sendResponse({ webRequestCount: networkRequests.length });
@@ -232,69 +132,128 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-async function collectPrivacyData() {
-  try {
-    const cookies = await getCookiesUsingChromeAPI();
+// Placeholder for comprehensive data collection - will implement next
+async function collectComprehensivePrivacyData() {
+  const currentDomain = window.location.hostname;
+  const sampleUrl = window.location.href;
 
-    return {
-      page_url: window.location.href,
-      page_title: document.title,
-      cookies: cookies.map((cookie) => `${cookie.name}=${cookie.value}`), // Convert to string format for compatibility
-      raw_cookies: cookies, // Include structured cookie data
-      scripts: Array.from(document.querySelectorAll("script")).map(
-        (script) => ({
-          src: script.src || null,
-          inline: !script.src,
-          type: script.type || "text/javascript",
-          content_preview: script.src
-            ? null
-            : script.textContent?.substring(0, 500), // Increased for better ML analysis
-        })
-      ),
-      forms: Array.from(document.querySelectorAll("form")).map((form) => ({
-        action: form.action || "",
-        method: form.method || "get",
-        inputs: Array.from(form.querySelectorAll("input")).map((input) => ({
-          type: input.type,
-          name: input.name,
-          required: input.required,
-        })),
-      })),
-      network_requests: networkRequests.slice(-50), // Include last 50 network requests
-      timestamp: new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error("Error collecting privacy data:", error);
-    // Fallback to document.cookie if Chrome API fails
-    return {
-      page_url: window.location.href,
-      page_title: document.title,
-      cookies: document.cookie
-        .split(";")
-        .map((c) => c.trim())
-        .filter(Boolean),
-      raw_cookies: [],
-      scripts: Array.from(document.querySelectorAll("script")).map(
-        (script) => ({
-          src: script.src || null,
-          inline: !script.src,
-          type: script.type || "text/javascript",
-          content_preview: script.src
-            ? null
-            : script.textContent?.substring(0, 500),
-        })
-      ),
-      forms: Array.from(document.querySelectorAll("form")).map((form) => ({
-        action: form.action || "",
-        method: form.method || "get",
-        inputs: Array.from(form.querySelectorAll("input")).map((input) => ({
-          type: input.type,
-          name: input.name,
-          required: input.required,
-        })),
-      })),
-      network_requests: networkRequests.slice(-50),
-      timestamp: new Date().toISOString(),
-    };
+  // Test the tracker detection utilities
+  const domain = getDomainFromUrl(sampleUrl);
+  console.log(
+    `Domain analysis: ${domain}, third-party: ${isThirdPartyDomain(
+      domain,
+      currentDomain
+    )}, tracker: ${isKnownTracker(domain)}`
+  );
+
+  // Collect cookies from document.cookie
+  const rawCookies = [];
+  if (document.cookie) {
+    const cookies = document.cookie.split(";");
+    for (const cookie of cookies) {
+      const [name, ...valueParts] = cookie.trim().split("=");
+      if (name && valueParts.length > 0) {
+        rawCookies.push({
+          name: name.trim(),
+          value: valueParts.join("=").trim(),
+          domain: currentDomain,
+          path: "/",
+          secure: window.location.protocol === "https:",
+          httpOnly: false, // Cannot detect from document.cookie
+          session: true, // Default assumption, will be enhanced with background script data
+        });
+      }
+    }
   }
+
+  // Collect scripts
+  const scripts = [];
+  const allScripts = document.querySelectorAll("script");
+  for (const script of allScripts) {
+    const scriptData = {
+      src: script.src || null,
+      content_preview: script.src
+        ? null
+        : script.textContent?.substring(0, 100) || null,
+      inline: !script.src,
+      type: script.type || "text/javascript",
+      domain: script.src ? getDomainFromUrl(script.src) : null,
+      is_third_party: script.src
+        ? isThirdPartyDomain(getDomainFromUrl(script.src), currentDomain)
+        : false,
+      is_known_tracker: script.src
+        ? isKnownTracker(getDomainFromUrl(script.src))
+        : false,
+    };
+    scripts.push(scriptData);
+  }
+
+  // Enhanced analytics detection
+  analyticsFlags.has_google_analytics =
+    !!(window as any).ga ||
+    !!(window as any).gtag ||
+    document.querySelector('script[src*="google-analytics"]') !== null;
+  analyticsFlags.has_gtag =
+    !!(window as any).gtag ||
+    document.querySelector('script[src*="gtag"]') !== null;
+  analyticsFlags.has_facebook_pixel =
+    !!(window as any).fbq ||
+    document.querySelector('script[src*="facebook"]') !== null;
+  analyticsFlags.has_data_layer = !!(window as any).dataLayer;
+
+  // Update detected analytics array
+  analyticsFlags.detected_analytics = [];
+  if (analyticsFlags.has_google_analytics)
+    analyticsFlags.detected_analytics.push("google_analytics");
+  if (analyticsFlags.has_gtag) analyticsFlags.detected_analytics.push("gtag");
+  if (analyticsFlags.has_facebook_pixel)
+    analyticsFlags.detected_analytics.push("facebook_pixel");
+  if (analyticsFlags.has_data_layer)
+    analyticsFlags.detected_analytics.push("data_layer");
+
+  // Enhanced fingerprinting detection
+  fingerprintingFlags.canvas_fingerprinting =
+    document.querySelectorAll("canvas").length > 0;
+  fingerprintingFlags.audio_fingerprinting =
+    !!(window as any).AudioContext || !!(window as any).webkitAudioContext;
+  fingerprintingFlags.webgl_fingerprinting = !!document
+    .querySelector("canvas")
+    ?.getContext("webgl");
+  fingerprintingFlags.font_fingerprinting =
+    document.querySelectorAll('style, link[rel="stylesheet"]').length > 5; // Heuristic
+
+  // Update detected methods array
+  fingerprintingFlags.detected_methods = [];
+  if (fingerprintingFlags.canvas_fingerprinting)
+    fingerprintingFlags.detected_methods.push("canvas");
+  if (fingerprintingFlags.audio_fingerprinting)
+    fingerprintingFlags.detected_methods.push("audio");
+  if (fingerprintingFlags.webgl_fingerprinting)
+    fingerprintingFlags.detected_methods.push("webgl");
+  if (fingerprintingFlags.font_fingerprinting)
+    fingerprintingFlags.detected_methods.push("font");
+
+  return {
+    page_url: window.location.href,
+    page_title: document.title,
+    page_domain: currentDomain,
+    timestamp: new Date().toISOString(),
+    raw_cookies: rawCookies,
+    scripts: scripts,
+    network_requests: networkRequests.map((req) => ({
+      ...req,
+      domain: getDomainFromUrl(req.url),
+      is_third_party: isThirdPartyDomain(
+        getDomainFromUrl(req.url),
+        currentDomain
+      ),
+      is_known_tracker: isKnownTracker(getDomainFromUrl(req.url)),
+    })),
+    analytics_flags: analyticsFlags,
+    fingerprinting_flags: fingerprintingFlags,
+    cookies: [], // Legacy format
+  };
 }
+
+// Initialize the content script
+console.log("PrivInspect Content Script Initialized on:", window.location.href);

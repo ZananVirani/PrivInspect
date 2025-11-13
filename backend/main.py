@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 import redis.asyncio as redis
@@ -8,6 +9,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 import uvicorn
+import json
 
 from app.config import settings
 from app.routers import auth, analyze
@@ -49,6 +51,24 @@ app = FastAPI(
 # Add security middleware
 app.add_middleware(SecurityMiddleware)
 
+# Add request logging middleware for debugging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Middleware to log all requests for debugging."""
+    if request.url.path == "/api/v1/analyze":
+        body = await request.body()
+        logger.info(f"=== ANALYZE REQUEST DEBUG ===")
+        logger.info(f"Method: {request.method}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Body: {body.decode('utf-8') if body else 'No body'}")
+        # Recreate request with body for processing
+        async def receive():
+            return {"type": "http.request", "body": body}
+        request._receive = receive
+    
+    response = await call_next(request)
+    return response
+
 # Add CORS middleware with restricted origins
 app.add_middleware(
     CORSMiddleware,
@@ -65,6 +85,29 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"}
+    )
+
+# Validation error exception handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors and log detailed information."""
+    try:
+        # Try to get the request body for debugging
+        body = b''
+        if hasattr(request, '_body'):
+            body = request._body
+        
+        logger.error(f"=== VALIDATION ERROR ===")
+        logger.error(f"Request URL: {request.url}")
+        logger.error(f"Request body: {body.decode('utf-8') if body else 'No body available'}")
+        logger.error(f"Validation errors: {exc.errors()}")
+        logger.error(f"Raw validation details: {json.dumps(exc.errors(), indent=2)}")
+    except Exception as log_error:
+        logger.error(f"Error while logging validation error: {log_error}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": f"Validation error: {exc.errors()}"}
     )
 
 # Health check endpoint

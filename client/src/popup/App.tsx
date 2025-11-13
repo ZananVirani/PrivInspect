@@ -180,8 +180,11 @@ function App() {
         return;
       }
 
-      // Send to backend for analysis
-      const analysisResult = await ApiService.analyzePrivacy(results, token);
+      // Send to backend for analysis using new comprehensive method
+      const analysisResult = await ApiService.analyzeComprehensivePrivacy(
+        results,
+        token
+      );
       console.log("Analysis Result:", analysisResult);
     } catch (error) {
       console.error("Analysis failed:", error);

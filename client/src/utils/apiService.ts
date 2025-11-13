@@ -1,6 +1,83 @@
 // API Service for backend communication
 const API_BASE_URL = "http://localhost:8000";
 
+// Updated interface to match backend AnalyzeRequest model
+export interface ComprehensivePrivacyData {
+  // Basic page information
+  page_url: string;
+  page_title: string;
+  page_domain: string;
+  timestamp: string;
+
+  // Raw data for backend processing
+  raw_cookies: Array<{
+    name: string;
+    value: string;
+    domain: string;
+    path?: string;
+    secure?: boolean;
+    httpOnly?: boolean;
+    sameSite?: string;
+    expirationDate?: number;
+    session?: boolean;
+  }>;
+
+  scripts: Array<{
+    src?: string | null;
+    content_preview?: string;
+    inline: boolean;
+    type?: string;
+    domain?: string;
+    is_third_party?: boolean;
+    is_known_tracker?: boolean;
+  }>;
+
+  network_requests: Array<{
+    url: string;
+    method: string;
+    type: string;
+    timestamp: string;
+    domain?: string;
+    is_third_party?: boolean;
+    is_known_tracker?: boolean;
+  }>;
+
+  // Detection flags
+  analytics_flags?: {
+    has_google_analytics: boolean;
+    has_gtag: boolean;
+    has_facebook_pixel: boolean;
+    has_data_layer: boolean;
+    detected_analytics: string[];
+  };
+
+  fingerprinting_flags?: {
+    canvas_fingerprinting: boolean;
+    audio_fingerprinting: boolean;
+    webgl_fingerprinting: boolean;
+    font_fingerprinting: boolean;
+    detected_methods: string[];
+  };
+
+  // Pre-computed features for validation
+  privacy_features?: {
+    num_third_party_domains: number;
+    num_third_party_scripts: number;
+    num_third_party_cookies: number;
+    fraction_third_party_requests: number;
+    num_known_tracker_domains: number;
+    num_persistent_cookies: number;
+    has_analytics_global: number;
+    num_inline_scripts: number;
+    fingerprinting_flag: number;
+    tracker_script_ratio: number;
+  };
+
+  // Legacy format for backward compatibility
+  cookies?: string[];
+}
+
+// Legacy interfaces for backward compatibility
 export interface PageAnalysisData {
   page_url: string;
   page_title: string;
@@ -105,6 +182,29 @@ class ApiService {
     });
   }
 
+  // Updated method to handle comprehensive privacy data
+  static async analyzeComprehensivePrivacy(
+    data: ComprehensivePrivacyData,
+    token: string
+  ): Promise<any> {
+    if (!token) {
+      throw new Error("No authentication token available");
+    }
+
+    console.log("🔍 Sending comprehensive privacy data to backend:", data);
+
+    return this.makeRequest("/api/v1/analyze", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Extension-Client": "privacy-inspector",
+        "User-Agent": "PrivInspect Extension v1.0",
+      },
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Legacy method for backward compatibility
   static async analyzePrivacy(
     data: PageAnalysisData,
     token: string
