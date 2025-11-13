@@ -58,15 +58,38 @@ XMLHttpRequest.prototype.open = function (
   return originalXHROpen.call(this, method, url, async, username, password);
 };
 
-// Initialize when page loads
+// Initialize when page loads or immediately if already loaded
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initializeContentScript);
 } else {
   initializeContentScript();
 }
 
+// Also initialize on document ready for earlier injection
+if (document.readyState !== "complete") {
+  document.addEventListener("load", () => {
+    console.log(
+      "🔵 Document fully loaded, ensuring content script is initialized"
+    );
+    initializeContentScript();
+  });
+}
+
 function initializeContentScript() {
+  console.log(
+    "🔵 PrivInspect Content Script Initialized on:",
+    window.location.href
+  );
+  console.log("🔵 Network requests array length:", networkRequests.length);
   logBasicPageInfo();
+
+  // Test network tracking after a delay
+  setTimeout(() => {
+    console.log("🔵 Testing fetch network tracking...");
+    fetch("https://httpbin.org/get")
+      .then(() => console.log("🔵 Test fetch completed"))
+      .catch(() => console.log("🔵 Test fetch failed"));
+  }, 2000);
 }
 
 async function getCookiesUsingChromeAPI(): Promise<
@@ -177,12 +200,19 @@ async function logBasicPageInfo() {
 
 // Handle popup requests
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("🔵 Content script received message:", message.type);
+
   if (sender.id !== chrome.runtime.id) {
     console.warn("Rejected message from foreign extension:", sender.id);
     return; // Ignore the message
   }
 
   switch (message.type) {
+    case "PING":
+      console.log("🔵 Content script received PING, responding with PONG");
+      sendResponse({ status: "PONG" });
+      break;
+
     case "GET_PAGE_INFO":
       getCookiesUsingChromeAPI()
         .then((cookies) => {
@@ -218,6 +248,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true; // Keep message channel open for async response
 
     case "GET_WEB_REQUEST_COUNT":
+      console.log(
+        "🟢 GET_WEB_REQUEST_COUNT requested, returning:",
+        networkRequests.length
+      );
       sendResponse({ webRequestCount: networkRequests.length });
       break;
 

@@ -11,11 +11,7 @@ import {
   AlertCircle,
   Info,
 } from "lucide-react";
-import {
-  ApiService,
-  type PageAnalysisData,
-  type AnalysisResponse,
-} from "../utils/apiService";
+import { ApiService } from "../utils/apiService";
 
 interface PageInfo {
   url: string;
@@ -47,9 +43,6 @@ function App() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [analysisResults, setAnalysisResults] =
-    useState<AnalysisResponse | null>(null);
 
   useEffect(() => {
     initializePopup();
@@ -57,7 +50,7 @@ function App() {
     // Set up periodic web request monitoring
     const interval = setInterval(() => {
       updateWebRequestCount();
-    }, 1000); // Update every second
+    }, 3000); // Update every 3 seconds
 
     return () => clearInterval(interval);
   }, []);
@@ -68,23 +61,56 @@ function App() {
         active: true,
         currentWindow: true,
       });
-      if (tab?.id) {
-        chrome.tabs.sendMessage(
-          tab.id,
-          { type: "GET_WEB_REQUEST_COUNT" },
-          (response) => {
-            if (
-              !chrome.runtime.lastError &&
-              response &&
-              response.webRequestCount !== undefined
-            ) {
-              setPageInfo((prev) => ({
-                ...prev,
-                webRequestCount: response.webRequestCount,
-              }));
-            }
+      if (
+        tab?.id &&
+        tab.url &&
+        !tab.url.startsWith("chrome://") &&
+        !tab.url.startsWith("chrome-extension://")
+      ) {
+        console.log("🔴 Sending GET_WEB_REQUEST_COUNT message to tab:", tab.id);
+
+        // First try to ping the content script to see if it's ready
+        chrome.tabs.sendMessage(tab.id, { type: "PING" }, (_pingResponse) => {
+          if (chrome.runtime.lastError) {
+            console.log(
+              "🟡 Content script not ready:",
+              chrome.runtime.lastError.message
+            );
+            // Content script should be automatically injected by manifest
+            // No need to manually inject, just wait for it to be ready
+            return;
           }
-        );
+
+          // Content script is ready, now get the web request count
+          chrome.tabs.sendMessage(
+            tab.id!,
+            { type: "GET_WEB_REQUEST_COUNT" },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                console.log(
+                  "🔴 Chrome runtime error:",
+                  chrome.runtime.lastError.message
+                );
+              } else if (response && response.webRequestCount !== undefined) {
+                console.log(
+                  "🟢 Received web request count:",
+                  response.webRequestCount
+                );
+                setPageInfo((prev) => ({
+                  ...prev,
+                  webRequestCount: response.webRequestCount,
+                }));
+              } else {
+                console.log(
+                  "🟡 No response or undefined webRequestCount:",
+                  response
+                );
+              }
+            }
+          );
+        });
+      } else {
+        console.log("🔴 No active tab found or invalid URL:", tab?.url);
       }
     } catch (error) {
       console.error("Error updating web request count:", error);
@@ -149,7 +175,7 @@ function App() {
       const token = await getValidToken();
 
       if (!token) {
-        setAnalysisResults({ error: "Authentication failed" });
+        console.error("Authentication failed");
         return;
       }
 
@@ -159,7 +185,7 @@ function App() {
         currentWindow: true,
       });
       if (!tab.id) {
-        setAnalysisResults({ error: "No active tab found" });
+        console.error("No active tab found");
         return;
       }
 
@@ -168,19 +194,15 @@ function App() {
       });
 
       if (!results) {
-        setAnalysisResults({ error: "Failed to collect page data" });
+        console.error("Failed to collect page data");
         return;
       }
 
       // Send to backend for analysis
       const analysisResult = await ApiService.analyzePrivacy(results, token);
-      setAnalysisResults(analysisResult);
       console.log("Analysis Result:", analysisResult);
     } catch (error) {
       console.error("Analysis failed:", error);
-      setAnalysisResults({
-        error: error instanceof Error ? error.message : "Analysis failed",
-      });
     } finally {
       setLoading(false);
     }
