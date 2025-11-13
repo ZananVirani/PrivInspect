@@ -5,6 +5,11 @@ export interface PageAnalysisData {
   page_url: string;
   page_title: string;
   cookies: string[];
+  raw_cookies?: Array<{
+    name: string;
+    value: string;
+    domain: string;
+  }>;
   scripts: Array<{
     src: string | null;
     inline: boolean;
@@ -19,6 +24,12 @@ export interface PageAnalysisData {
       name: string;
       required: boolean;
     }>;
+  }>;
+  network_requests?: Array<{
+    url: string;
+    method: string;
+    type: string;
+    timestamp: string;
   }>;
   timestamp: string;
 }
@@ -105,20 +116,32 @@ class ApiService {
     // Transform frontend data to backend format
     const backendRequest: BackendAnalysisRequest = {
       url: data.page_url,
-      cookies: data.cookies.map((cookieString) => {
-        // Parse cookie string "name=value" format
-        const [name, ...valueParts] = cookieString.split("=");
-        const value = valueParts.join("=");
-        return {
-          name: name?.trim() || "",
-          value: value?.trim() || "",
-          domain: new URL(data.page_url).hostname,
-        };
-      }),
-      scripts: data.scripts,
+      cookies:
+        data.raw_cookies ||
+        data.cookies.map((cookieString) => {
+          // Parse cookie string "name=value" format if raw_cookies not available
+          const [name, ...valueParts] = cookieString.split("=");
+          const value = valueParts.join("=");
+          return {
+            name: name?.trim() || "",
+            value: value?.trim() || "",
+            domain: new URL(data.page_url).hostname,
+          };
+        }),
+      scripts: data.scripts
+        .filter((script) => script.src || script.inline) // Include both external and inline scripts
+        .map((script) => ({
+          src: script.src || "", // Backend expects src to be required, use empty string for inline
+          content_preview: script.inline
+            ? script.content_preview || null
+            : null,
+          inline: script.inline,
+          type: script.type,
+        })),
       additional_data: {
         page_title: data.page_title,
         forms: data.forms,
+        network_requests: data.network_requests || [],
       },
     };
 

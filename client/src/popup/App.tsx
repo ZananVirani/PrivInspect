@@ -22,6 +22,7 @@ interface PageInfo {
   title: string;
   cookieCount: number;
   scriptCount: number;
+  webRequestCount: number;
 }
 
 interface ExtensionStatus {
@@ -36,6 +37,7 @@ function App() {
     title: "Loading...",
     cookieCount: 0,
     scriptCount: 0,
+    webRequestCount: 0,
   });
 
   const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>({
@@ -51,7 +53,43 @@ function App() {
 
   useEffect(() => {
     initializePopup();
+
+    // Set up periodic web request monitoring
+    const interval = setInterval(() => {
+      updateWebRequestCount();
+    }, 1000); // Update every second
+
+    return () => clearInterval(interval);
   }, []);
+
+  const updateWebRequestCount = async () => {
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tab?.id) {
+        chrome.tabs.sendMessage(
+          tab.id,
+          { type: "GET_WEB_REQUEST_COUNT" },
+          (response) => {
+            if (
+              !chrome.runtime.lastError &&
+              response &&
+              response.webRequestCount !== undefined
+            ) {
+              setPageInfo((prev) => ({
+                ...prev,
+                webRequestCount: response.webRequestCount,
+              }));
+            }
+          }
+        );
+      }
+    } catch (error) {
+      console.error("Error updating web request count:", error);
+    }
+  };
 
   const initializePopup = async () => {
     try {
@@ -175,6 +213,7 @@ function App() {
           title: "Analysis unavailable",
           cookieCount: 0,
           scriptCount: 0,
+          webRequestCount: 0,
         });
         return;
       }
@@ -190,6 +229,7 @@ function App() {
           title: tab.title || "Unknown",
           cookieCount: 0,
           scriptCount: 0,
+          webRequestCount: 0,
         };
 
         setPageInfo(basicInfo);
@@ -205,6 +245,7 @@ function App() {
                   ...prev,
                   cookieCount: response.cookieCount || 0,
                   scriptCount: response.scriptCount || 0,
+                  webRequestCount: response.webRequestCount || 0,
                 }));
               }
             }
@@ -219,6 +260,7 @@ function App() {
         title: "Error loading data",
         cookieCount: 0,
         scriptCount: 0,
+        webRequestCount: 0,
       });
     }
   };
@@ -476,6 +518,22 @@ function App() {
                     {pageInfo.scriptCount}
                   </div>
                   <div className="text-xs text-gray-500">Scripts</div>
+                </div>
+              </div>
+              <div
+                className={`flex items-center justify-center gap-2 p-2 bg-white rounded-lg border ${
+                  !extensionStatus.backgroundActive ||
+                  !extensionStatus.permissionsGranted
+                    ? "opacity-50"
+                    : ""
+                }`}
+              >
+                <Activity className="w-4 h-4 text-purple-500" />
+                <div className="text-center">
+                  <div className="text-lg font-bold text-purple-600">
+                    {pageInfo.webRequestCount}
+                  </div>
+                  <div className="text-xs text-gray-500">Requests</div>
                 </div>
               </div>
             </div>

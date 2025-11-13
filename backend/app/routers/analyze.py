@@ -52,7 +52,6 @@ async def analyze_website_privacy(
     Analyze website privacy data from the browser extension.
     Requires valid JWT token and extension headers.
     """
-    logger.info("Hiiiii")
     return AnalyzeResponse(
         privacy_score=1,
         cookies_analyzed=432,
