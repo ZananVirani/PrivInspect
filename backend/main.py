@@ -194,13 +194,13 @@ async def health_check():
 app.include_router(
     auth.router,
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(times=10, seconds=60))]  # 10 requests per minute
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))]  # 5 requests per minute
 )
 
 app.include_router(
     analyze.router,
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(times=5, seconds=60))]   # 5 requests per minute for analysis
+    dependencies=[Depends(RateLimiter(times=20, seconds=60))]   # 20 requests per minute for analysis
 )
 
 if __name__ == "__main__":
