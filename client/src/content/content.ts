@@ -1,9 +1,5 @@
 // Import tracker detection utilities
-import {
-  getDomainFromUrl,
-  isThirdPartyDomain,
-  isKnownTracker,
-} from "../utils/trackerDetection";
+import { getDomainFromUrl } from "../utils/trackerDetection";
 
 // Track network requests (fallback for content script level tracking)
 const networkRequests: Array<{
@@ -135,16 +131,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Placeholder for comprehensive data collection - will implement next
 async function collectComprehensivePrivacyData() {
   const currentDomain = window.location.hostname;
-  const sampleUrl = window.location.href;
-
-  // Test the tracker detection utilities
-  const domain = getDomainFromUrl(sampleUrl);
-  console.log(
-    `Domain analysis: ${domain}, third-party: ${isThirdPartyDomain(
-      domain,
-      currentDomain
-    )}, tracker: ${isKnownTracker(domain)}`
-  );
 
   // Collect cookies from document.cookie
   const rawCookies = [];
@@ -154,13 +140,8 @@ async function collectComprehensivePrivacyData() {
       const [name, ...valueParts] = cookie.trim().split("=");
       if (name && valueParts.length > 0) {
         rawCookies.push({
-          name: name.trim(),
-          value: valueParts.join("=").trim(),
           domain: currentDomain,
-          path: "/",
           secure: window.location.protocol === "https:",
-          httpOnly: false, // Cannot detect from document.cookie
-          session: true, // Default assumption, will be enhanced with background script data
         });
       }
     }
@@ -171,19 +152,7 @@ async function collectComprehensivePrivacyData() {
   const allScripts = document.querySelectorAll("script");
   for (const script of allScripts) {
     const scriptData = {
-      src: script.src || null,
-      content_preview: script.src
-        ? null
-        : script.textContent?.substring(0, 100) || null,
-      inline: !script.src,
-      type: script.type || "text/javascript",
       domain: script.src ? getDomainFromUrl(script.src) : null,
-      is_third_party: script.src
-        ? isThirdPartyDomain(getDomainFromUrl(script.src), currentDomain)
-        : false,
-      is_known_tracker: script.src
-        ? isKnownTracker(getDomainFromUrl(script.src))
-        : false,
     };
     scripts.push(scriptData);
   }
@@ -243,17 +212,8 @@ async function collectComprehensivePrivacyData() {
     network_requests: networkRequests.map((req) => ({
       ...req,
       domain: getDomainFromUrl(req.url),
-      is_third_party: isThirdPartyDomain(
-        getDomainFromUrl(req.url),
-        currentDomain
-      ),
-      is_known_tracker: isKnownTracker(getDomainFromUrl(req.url)),
     })),
     analytics_flags: analyticsFlags,
     fingerprinting_flags: fingerprintingFlags,
-    cookies: [], // Legacy format
   };
 }
-
-// Initialize the content script
-console.log("PrivInspect Content Script Initialized on:", window.location.href);

@@ -1,31 +1,18 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
-# Enhanced cookie data model with all fields needed for privacy features
+# Simplified cookie data model - only what frontend sends
 class CookieData(BaseModel):
     """Model for cookie data from browser extension."""
-    name: str
-    value: str
     domain: str
-    path: Optional[str] = "/"
     secure: Optional[bool] = False
-    httpOnly: Optional[bool] = False
-    sameSite: Optional[str] = None
-    expirationDate: Optional[float] = None  # Feature 6: num_persistent_cookies
-    session: Optional[bool] = True
 
-# Enhanced script data model for tracker detection
+# Simplified script data model - only what frontend sends
 class ScriptData(BaseModel):
     """Model for script data from browser extension."""
-    src: Optional[str] = None
-    content_preview: Optional[str] = None
-    inline: bool
-    type: Optional[str] = "text/javascript"
-    domain: Optional[str] = None  # Feature 2: num_third_party_scripts
-    is_third_party: Optional[bool] = False  # Feature 2: num_third_party_scripts
-    is_known_tracker: Optional[bool] = False  # Feature 5, 10: tracker detection
+    domain: Optional[str] = None
 
-# Network request data model
+# Network request data model - what frontend sends
 class NetworkRequestData(BaseModel):
     """Model for network request data from browser extension."""
     url: str
@@ -33,8 +20,6 @@ class NetworkRequestData(BaseModel):
     type: str
     timestamp: str
     domain: Optional[str] = None
-    is_third_party: Optional[bool] = False  # Feature 1, 4: third-party analysis
-    is_known_tracker: Optional[bool] = False  # Feature 5: known tracker domains
 
 # Analytics detection flags for feature 7
 class AnalyticsFlags(BaseModel):

@@ -8,9 +8,34 @@ from app.routers.auth import verify_jwt_token
 from app.models import AnalyzeRequest, AnalyzeResponse, PrivacyFeatures
 from app.security.extension_auth import validate_extension_request
 import json
+import re
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Known tracker domains - matches the frontend list
+KNOWN_TRACKERS = {
+    # Analytics trackers
+    "google-analytics.com", "googletagmanager.com", "googleadservices.com", 
+    "doubleclick.net", "facebook.com", "facebook.net", "fbcdn.net", 
+    "connect.facebook.net",
+    # Ad networks
+    "googlesyndication.com", "adsystem.amazon.com", "amazon-adsystem.com", 
+    "adsymptotic.com",
+    # Social media trackers
+    "twitter.com", "t.co", "linkedin.com", "instagram.com",
+    # Other common trackers
+    "hotjar.com", "mixpanel.com", "segment.com", "amplitude.com", 
+    "fullstory.com", "loggly.com", "newrelic.com", "pingdom.net", 
+    "quantserve.com", "scorecardresearch.com", "comscore.com", 
+    "bing.com", "yahoo.com", "yandex.ru", "baidu.com",
+    # CDNs often used for tracking
+    "cdnjs.cloudflare.com", "ajax.googleapis.com", "maxcdn.bootstrapcdn.com"
+}
+
+def is_known_tracker(domain: str) -> bool:
+    """Check if a domain is a known tracker."""
+    return domain.lower() in KNOWN_TRACKERS
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,16 +48,84 @@ def extract_domain_from_url(url: str) -> str:
     except:
         return ""
 
+def extract_domain_keywords(domain: str) -> set:
+    """Extract meaningful keywords from a domain for first-party detection."""
+    # Remove common prefixes and TLD
+    clean_domain = domain.replace("www.", "").split('.')[0]  # Get the main part before first dot
+    
+    # Split by common separators to get keywords
+    import re
+    parts = re.split(r'[.\-_]', clean_domain)
+    
+    # Filter out common generic words and keep meaningful keywords
+    generic_words = {'www', 'cdn', 'static', 'assets', 'api', 'img', 'images', 'js', 'css', 'media', 
+                    'content', 'data', 'files', 'docs', 'blog', 'news', 'store', 'shop', 'mail', 
+                    'email', 'support', 'help', 'admin', 'secure'}
+    
+    keywords = set()
+    
+    for part in parts:
+        if len(part) >= 3 and part.lower() not in generic_words:
+            keywords.add(part.lower())
+    
+    return keywords
+
 def is_third_party_domain(request_domain: str, page_domain: str) -> bool:
-    """Check if a domain is third-party relative to page domain."""
-    clean_request = request_domain.replace("www.", "")
-    clean_page = page_domain.replace("www.", "")
-    return not clean_request.endswith(clean_page) and clean_request != clean_page
+    """Check if a domain is third-party relative to page domain using keyword matching."""
+    # Remove www. prefix for comparison
+    clean_request = request_domain.replace("www.", "").lower()
+    clean_page = page_domain.replace("www.", "").lower()
+    
+    # If domains are exactly the same, it's first-party
+    if clean_request == clean_page:
+        return False
+    
+    # Check if request domain is a subdomain of page domain (traditional first-party)
+    if clean_request.endswith(f".{clean_page}"):
+        return False
+    
+    # Check if page domain is a subdomain of request domain  
+    if clean_page.endswith(f".{clean_request}"):
+        return False
+    
+    # Extract the base domain (e.g., "mail.google.com" -> "google.com")
+    def get_base_domain(domain):
+        parts = domain.split('.')
+        if len(parts) >= 2:
+            # For common cases, return the last two parts (domain.tld)
+            return '.'.join(parts[-2:])
+        return domain
+    
+    # Check if they share the same base domain
+    base_request = get_base_domain(clean_request)
+    base_page = get_base_domain(clean_page)
+    
+    if base_request == base_page:
+        return False  # Same base domain = first-party
+    
+    # Extract keywords from both domains for additional matching
+    page_keywords = extract_domain_keywords(clean_page)
+    request_keywords = extract_domain_keywords(clean_request)
+    
+    # If they share significant keywords, consider them first-party
+    for page_keyword in page_keywords:
+        if len(page_keyword) >= 4:  # Only consider meaningful keywords
+            for request_keyword in request_keywords:
+                if len(request_keyword) >= 4:
+                    # Check for exact match or one contains the other
+                    if (page_keyword == request_keyword or 
+                        page_keyword in request_keyword or 
+                        request_keyword in page_keyword):
+                        return False  # First-party
+    
+    # If no match, it's third-party
+    return True
 
 def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     """
     Compute all 10 privacy features from the collected data.
     This demonstrates feature extraction from raw extension data.
+    Backend now handles all third-party and tracker detection.
     """
     page_domain = data.page_domain
     
@@ -48,23 +141,30 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     for req in data.network_requests:
         if req.domain:
             all_domains.add(req.domain)
-            if req.is_third_party:
+            # Backend computes third-party status
+            if is_third_party_domain(req.domain, page_domain):
                 third_party_domains.add(req.domain)
                 third_party_request_count += 1
-            if req.is_known_tracker:
+            # Backend computes tracker status
+            if is_known_tracker(req.domain):
                 tracker_domains.add(req.domain)
     
     # Feature 1: Number of unique third-party domains
     features.num_third_party_domains = len(third_party_domains)
     
-    # Feature 2: Number of third-party scripts
-    features.num_third_party_scripts = sum(1 for script in data.scripts if script.is_third_party)
+    # Feature 2: Number of third-party scripts - backend computes third-party status
+    third_party_scripts = 0
+    for script in data.scripts:
+        if script.domain and is_third_party_domain(script.domain, page_domain):
+            third_party_scripts += 1
+    features.num_third_party_scripts = third_party_scripts
     
-    # Feature 3: Number of third-party cookies
-    features.num_third_party_cookies = sum(
-        1 for cookie in data.raw_cookies 
-        if is_third_party_domain(cookie.domain, page_domain)
-    )
+    # Feature 3: Number of third-party cookies - backend computes third-party status
+    third_party_cookies = 0
+    for cookie in data.raw_cookies:
+        if is_third_party_domain(cookie.domain, page_domain):
+            third_party_cookies += 1
+    features.num_third_party_cookies = third_party_cookies
     
     # Feature 4: Fraction of requests that are third-party
     total_requests = len(data.network_requests)
@@ -75,11 +175,10 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Feature 5: Number of known tracker domains
     features.num_known_tracker_domains = len(tracker_domains)
     
-    # Feature 6: Number of persistent cookies (non-session)
-    features.num_persistent_cookies = sum(
-        1 for cookie in data.raw_cookies 
-        if not cookie.session and cookie.expirationDate
-    )
+    # Feature 6: Number of persistent cookies (simplified - we don't have expiration data)
+    # Since frontend only sends domain and secure, we can't distinguish persistent vs session
+    # For now, assume all cookies are persistent (conservative estimate)
+    features.num_persistent_cookies = len(data.raw_cookies)
     
     # Feature 7: Has analytics globals (boolean converted to int)
     has_analytics = False
@@ -92,8 +191,11 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
         )
     features.has_analytics_global = 1 if has_analytics else 0
     
-    # Feature 8: Number of inline scripts
-    features.num_inline_scripts = sum(1 for script in data.scripts if script.inline)
+    # Feature 8: Number of inline scripts (simplified - we don't have inline flag)
+    # Since frontend only sends domain, we can't distinguish inline vs external
+    # Count scripts with no domain as inline scripts
+    inline_scripts = sum(1 for script in data.scripts if not script.domain)
+    features.num_inline_scripts = inline_scripts
     
     # Feature 9: Fingerprinting flag (boolean converted to int)
     has_fingerprinting = False
@@ -107,11 +209,13 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     features.fingerprinting_flag = 1 if has_fingerprinting else 0
     
     # Feature 10: Tracker script ratio
-    third_party_script_count = features.num_third_party_scripts
-    known_tracker_script_count = sum(1 for script in data.scripts if script.is_known_tracker)
+    tracker_scripts = 0
+    for script in data.scripts:
+        if script.domain and is_known_tracker(script.domain):
+            tracker_scripts += 1
+    
     features.tracker_script_ratio = (
-        known_tracker_script_count / third_party_script_count 
-        if third_party_script_count > 0 else 0.0
+        tracker_scripts / third_party_scripts if third_party_scripts > 0 else 0.0
     )
     
     return features
@@ -180,10 +284,12 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     known_trackers = set()
     
     for req in data.network_requests:
-        if req.is_third_party and req.domain:
-            third_party_domains.add(req.domain)
-        if req.is_known_tracker and req.domain:
-            known_trackers.add(req.domain)
+        if req.domain:
+            # Backend computes third-party and tracker status
+            if is_third_party_domain(req.domain, data.page_domain):
+                third_party_domains.add(req.domain)
+            if is_known_tracker(req.domain):
+                known_trackers.add(req.domain)
     
     if not findings:
         findings.append("No significant privacy issues detected")
