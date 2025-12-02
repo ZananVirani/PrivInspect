@@ -132,12 +132,13 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Feature computation
     features = PrivacyFeatures()
     
-    # Process network requests for domain and tracker analysis
+    # Process all data sources for comprehensive domain and tracker analysis
     all_domains = set()
     third_party_domains = set()
     tracker_domains = set()
     third_party_request_count = 0
     
+    # Process network requests
     for req in data.network_requests:
         if req.domain:
             all_domains.add(req.domain)
@@ -149,7 +150,25 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             if is_known_tracker(req.domain):
                 tracker_domains.add(req.domain)
     
-    # Feature 1: Number of unique third-party domains
+    # Process script domains
+    for script in data.scripts:
+        if script.domain:
+            all_domains.add(script.domain)
+            if is_third_party_domain(script.domain, page_domain):
+                third_party_domains.add(script.domain)
+            if is_known_tracker(script.domain):
+                tracker_domains.add(script.domain)
+    
+    # Process cookie domains
+    for cookie in data.raw_cookies:
+        if cookie.domain:
+            all_domains.add(cookie.domain)
+            if is_third_party_domain(cookie.domain, page_domain):
+                third_party_domains.add(cookie.domain)
+            if is_known_tracker(cookie.domain):
+                tracker_domains.add(cookie.domain)
+    
+    # Feature 1: Number of unique third-party domains (across ALL sources)
     features.num_third_party_domains = len(third_party_domains)
     
     # Feature 2: Number of third-party scripts - backend computes third-party status
@@ -175,10 +194,15 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Feature 5: Number of known tracker domains
     features.num_known_tracker_domains = len(tracker_domains)
     
-    # Feature 6: Number of persistent cookies (simplified - we don't have expiration data)
-    # Since frontend only sends domain and secure, we can't distinguish persistent vs session
-    # For now, assume all cookies are persistent (conservative estimate)
-    features.num_persistent_cookies = len(data.raw_cookies)
+    # Feature 6: Number of persistent cookies (non-session cookies)
+    persistent_cookies = 0
+    for cookie in data.raw_cookies:
+        # A cookie is persistent if:
+        # 1. It's explicitly marked as non-session (session=False), OR
+        # 2. It has an expirationDate set (which means it persists beyond session)
+        if (not cookie.session) or (cookie.expirationDate is not None):
+            persistent_cookies += 1
+    features.num_persistent_cookies = persistent_cookies
     
     # Feature 7: Has analytics globals (boolean converted to int)
     has_analytics = False
@@ -279,17 +303,33 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     elif len(risk_factors) >= 1:
         privacy_level = "medium"
     
-    # Extract unique third-party domains and trackers for response
-    third_party_domains = set()
-    known_trackers = set()
+    # Extract unique third-party domains and trackers for response (from ALL sources)
+    third_party_domains_for_response = set()
+    known_trackers_for_response = set()
     
+    # Check network requests
     for req in data.network_requests:
         if req.domain:
-            # Backend computes third-party and tracker status
             if is_third_party_domain(req.domain, data.page_domain):
-                third_party_domains.add(req.domain)
+                third_party_domains_for_response.add(req.domain)
             if is_known_tracker(req.domain):
-                known_trackers.add(req.domain)
+                known_trackers_for_response.add(req.domain)
+    
+    # Check scripts
+    for script in data.scripts:
+        if script.domain:
+            if is_third_party_domain(script.domain, data.page_domain):
+                third_party_domains_for_response.add(script.domain)
+            if is_known_tracker(script.domain):
+                known_trackers_for_response.add(script.domain)
+    
+    # Check cookies
+    for cookie in data.raw_cookies:
+        if cookie.domain:
+            if is_third_party_domain(cookie.domain, data.page_domain):
+                third_party_domains_for_response.add(cookie.domain)
+            if is_known_tracker(cookie.domain):
+                known_trackers_for_response.add(cookie.domain)
     
     if not findings:
         findings.append("No significant privacy issues detected")
@@ -302,8 +342,8 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         "computed_features": features,
         "findings": findings,
         "recommendations": recommendations,
-        "third_party_domains": list(third_party_domains),
-        "known_trackers": list(known_trackers),
+        "third_party_domains": list(third_party_domains_for_response),
+        "known_trackers": list(known_trackers_for_response),
         "privacy_level": privacy_level,
         "risk_factors": risk_factors
     }

@@ -132,20 +132,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function collectComprehensivePrivacyData() {
   const currentDomain = window.location.hostname;
 
-  // Collect cookies from document.cookie
-  const rawCookies = [];
-  if (document.cookie) {
-    const cookies = document.cookie.split(";");
-    for (const cookie of cookies) {
-      const [name, ...valueParts] = cookie.trim().split("=");
-      if (name && valueParts.length > 0) {
-        rawCookies.push({
-          domain: currentDomain,
-          secure: window.location.protocol === "https:",
-        });
+  // Get detailed cookies from background script (which has access to chrome.cookies API)
+  const cookieData = await new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      { type: "GET_DETAILED_COOKIES", url: window.location.href },
+      (response) => {
+        resolve(response?.cookies || []);
       }
-    }
-  }
+    );
+  });
 
   // Collect scripts
   const scripts = [];
@@ -207,7 +202,7 @@ async function collectComprehensivePrivacyData() {
     page_title: document.title,
     page_domain: currentDomain,
     timestamp: new Date().toISOString(),
-    raw_cookies: rawCookies,
+    raw_cookies: cookieData,
     scripts: scripts,
     network_requests: networkRequests.map((req) => ({
       ...req,

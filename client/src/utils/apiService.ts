@@ -9,10 +9,12 @@ export interface ComprehensivePrivacyData {
   page_domain: string;
   timestamp: string;
 
-  // Simplified raw data - backend handles all third-party detection
+  // Cookie data with essential properties for privacy analysis
   raw_cookies: Array<{
     domain: string;
     secure?: boolean;
+    expirationDate?: number;
+    session?: boolean;
   }>;
 
   scripts: Array<{

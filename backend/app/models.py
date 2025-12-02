@@ -1,11 +1,13 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
-# Simplified cookie data model - only what frontend sends
+# Cookie data model with essential properties for privacy analysis
 class CookieData(BaseModel):
     """Model for cookie data from browser extension."""
     domain: str
     secure: Optional[bool] = False
+    expirationDate: Optional[float] = None  # Timestamp for persistent cookie detection
+    session: Optional[bool] = True  # True if session cookie, False if persistent
 
 # Simplified script data model - only what frontend sends
 class ScriptData(BaseModel):

@@ -67,18 +67,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "GET_COOKIES":
+    case "GET_DETAILED_COOKIES":
       // Handle cookie requests from content script - supports all 10 features
-      if (message.domain) {
-        chrome.cookies.getAll({ domain: message.domain }, (cookies) => {
+      const url = message.url || message.domain;
+      if (url) {
+        chrome.cookies.getAll({ url: url }, (cookies) => {
           // Include full cookie data for persistent cookie detection
           const cookieData = cookies.map((cookie) => ({
-            name: cookie.name,
-            value: cookie.value,
             domain: cookie.domain,
-            path: cookie.path,
             secure: cookie.secure,
-            httpOnly: cookie.httpOnly,
-            sameSite: cookie.sameSite,
             expirationDate: cookie.expirationDate, // For num_persistent_cookies feature
             session: cookie.session,
           }));
