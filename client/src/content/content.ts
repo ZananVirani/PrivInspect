@@ -95,16 +95,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "GET_PAGE_INFO":
       // Return basic page info for popup display
-      const cookieCount = document.cookie
-        ? document.cookie.split(";").length
-        : 0;
-      const scriptCount = document.querySelectorAll("script").length;
-      sendResponse({
-        cookieCount,
-        scriptCount,
-        webRequestCount: networkRequests.length,
-      });
-      break;
+      // Get accurate cookie count from background script (includes HttpOnly cookies)
+      chrome.runtime.sendMessage(
+        {
+          type: "GET_DETAILED_COOKIES",
+          url: window.location.href,
+        },
+        (response) => {
+          const cookieCount = response?.cookies?.length || 0;
+          const scriptCount = document.querySelectorAll("script").length;
+          sendResponse({
+            cookieCount,
+            scriptCount,
+            webRequestCount: networkRequests.length,
+          });
+        }
+      );
+      return true; // Keep message channel open for async response
 
     case "COLLECT_PRIVACY_DATA":
       // This will be implemented to collect comprehensive data
