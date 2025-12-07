@@ -527,22 +527,6 @@ function App() {
                   <div className="text-xs text-gray-500">Scripts</div>
                 </div>
               </div>
-              <div
-                className={`flex items-center justify-center gap-2 p-2 bg-white rounded-lg border ${
-                  !extensionStatus.backgroundActive ||
-                  !extensionStatus.permissionsGranted
-                    ? "opacity-50"
-                    : ""
-                }`}
-              >
-                <Activity className="w-4 h-4 text-purple-500" />
-                <div className="text-center">
-                  <div className="text-lg font-bold text-purple-600">
-                    {pageInfo.webRequestCount}
-                  </div>
-                  <div className="text-xs text-gray-500">Requests</div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
