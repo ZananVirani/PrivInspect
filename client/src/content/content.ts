@@ -95,22 +95,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "GET_PAGE_INFO":
       // Return basic page info for popup display
-      // Get accurate cookie count from background script (includes HttpOnly cookies)
-      chrome.runtime.sendMessage(
-        {
-          type: "GET_DETAILED_COOKIES",
-          url: window.location.href,
-        },
-        (response) => {
-          const cookieCount = response?.cookies?.length || 0;
-          const scriptCount = document.querySelectorAll("script").length;
-          sendResponse({
-            cookieCount,
-            scriptCount,
-            webRequestCount: networkRequests.length,
-          });
-        }
-      );
+      // Get accurate counts from background script
+      Promise.all([
+        new Promise((resolve) => {
+          chrome.runtime.sendMessage(
+            {
+              type: "GET_DETAILED_COOKIES",
+              url: window.location.href,
+            },
+            (response) => resolve(response?.cookies?.length || 0)
+          );
+        }),
+        new Promise((resolve) => {
+          chrome.runtime.sendMessage(
+            { type: "GET_NETWORK_REQUESTS" },
+            (response) => resolve(response?.requests?.length || 0)
+          );
+        }),
+      ]).then(([cookieCount, webRequestCount]) => {
+        const scriptCount = document.querySelectorAll("script").length;
+        sendResponse({
+          cookieCount,
+          scriptCount,
+          webRequestCount,
+        });
+      });
       return true; // Keep message channel open for async response
 
     case "COLLECT_PRIVACY_DATA":
@@ -126,8 +135,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
 
     case "GET_WEB_REQUEST_COUNT":
-      sendResponse({ webRequestCount: networkRequests.length });
-      break;
+      // Get comprehensive network request data from background script
+      chrome.runtime.sendMessage(
+        { type: "GET_NETWORK_REQUESTS" },
+        (response) => {
+          sendResponse({ webRequestCount: response?.requests?.length || 0 });
+        }
+      );
+      return true; // Keep message channel open for async response
 
     default:
       sendResponse({ error: "Unknown message type" });
@@ -204,6 +219,54 @@ async function collectComprehensivePrivacyData() {
   if (fingerprintingFlags.font_fingerprinting)
     fingerprintingFlags.detected_methods.push("font");
 
+  // Get network requests from background script and filter for most privacy-relevant ones
+  const networkRequestsResponse = await new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "GET_NETWORK_REQUESTS" }, (response) => {
+      resolve(response?.requests || []);
+    });
+  });
+
+  // Further filter and prioritize requests for backend analysis
+  const filteredRequests = (networkRequestsResponse as any[])
+    .filter((req) => {
+      const url = req.url.toLowerCase();
+
+      // Prioritize tracking and analytics requests
+      const highPriorityKeywords = [
+        "analytics",
+        "tracking",
+        "tracker",
+        "ads",
+        "doubleclick",
+        "googletagmanager",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "hotjar",
+        "mixpanel",
+        "segment",
+        "amplitude",
+        "intercom",
+        "google-analytics",
+        "gtag",
+        "fbq",
+        "pixel",
+      ];
+
+      const isHighPriority = highPriorityKeywords.some((keyword) =>
+        url.includes(keyword)
+      );
+      const isThirdParty =
+        getDomainFromUrl(req.url) !== window.location.hostname;
+      const isApiCall = req.type === "xmlhttprequest" || req.type === "other";
+
+      // Include if it's high priority tracking, third-party API calls, or scripts
+      return (
+        isHighPriority || (isThirdParty && (isApiCall || req.type === "script"))
+      );
+    })
+    .slice(0, 50); // Limit to 50 most relevant requests to prevent payload issues
+
   return {
     page_url: window.location.href,
     page_title: document.title,
@@ -211,8 +274,11 @@ async function collectComprehensivePrivacyData() {
     timestamp: new Date().toISOString(),
     raw_cookies: cookieData,
     scripts: scripts,
-    network_requests: networkRequests.map((req) => ({
-      ...req,
+    network_requests: filteredRequests.map((req) => ({
+      url: req.url,
+      method: req.method,
+      type: req.type,
+      timestamp: req.timestamp,
       domain: getDomainFromUrl(req.url),
     })),
     analytics_flags: analyticsFlags,

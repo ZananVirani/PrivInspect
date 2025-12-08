@@ -1,6 +1,83 @@
 // Import hot reload for development
 import "../utils/hotReload";
 
+// Function to determine if a network request is privacy-relevant
+function isPrivacyRelevantRequest(
+  details: chrome.webRequest.WebRequestBodyDetails
+): boolean {
+  const url = details.url.toLowerCase();
+
+  // Skip common static resources that don't provide privacy insights
+  const staticExtensions = [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".bmp",
+    ".css",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".mp4",
+    ".webm",
+    ".mp3",
+    ".wav",
+    ".ogg",
+  ];
+
+  // Skip if it's a static resource
+  if (staticExtensions.some((ext) => url.includes(ext))) {
+    return false;
+  }
+
+  // Include these privacy-relevant request types:
+  const relevantTypes = [
+    "xmlhttprequest", // API calls, AJAX
+    "script", // JavaScript files (may contain tracking)
+    "sub_frame", // Iframes (often used for tracking)
+    "ping", // Beacon/ping requests (tracking)
+    "other", // Catch-all for API calls
+  ];
+
+  // Include if it's a relevant type
+  if (relevantTypes.includes(details.type)) {
+    return true;
+  }
+
+  // Include requests to known tracking/analytics domains
+  const trackingKeywords = [
+    "analytics",
+    "tracking",
+    "tracker",
+    "ads",
+    "doubleclick",
+    "googletagmanager",
+    "facebook",
+    "twitter",
+    "linkedin",
+    "hotjar",
+    "mixpanel",
+    "segment",
+    "amplitude",
+    "intercom",
+  ];
+
+  if (trackingKeywords.some((keyword) => url.includes(keyword))) {
+    return true;
+  }
+
+  // Include third-party API calls (cross-origin requests)
+  if (details.type === "main_frame") {
+    return false; // Skip main page loads
+  }
+
+  return false;
+}
+
 // Track network requests per tab for privacy analysis
 const tabNetworkRequests = new Map<
   number,
@@ -14,7 +91,7 @@ const tabNetworkRequests = new Map<
 >();
 
 // Listen for network requests using webRequest API
-// This captures ALL network requests, not just fetch/xhr
+// This captures privacy-relevant requests, filtering out static resources
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
     // Skip chrome:// and extension:// URLs
@@ -22,6 +99,11 @@ chrome.webRequest.onBeforeRequest.addListener(
       details.url.startsWith("chrome://") ||
       details.url.startsWith("chrome-extension://")
     ) {
+      return;
+    }
+
+    // Only store privacy-relevant requests to reduce payload size
+    if (!isPrivacyRelevantRequest(details)) {
       return;
     }
 
@@ -39,10 +121,10 @@ chrome.webRequest.onBeforeRequest.addListener(
     }
     tabNetworkRequests.get(details.tabId)!.push(requestData);
 
-    // Keep only last 500 requests per tab to prevent memory issues
+    // Keep only last 100 requests per tab (reduced from 500)
     const requests = tabNetworkRequests.get(details.tabId)!;
-    if (requests.length > 500) {
-      requests.splice(0, requests.length - 500);
+    if (requests.length > 100) {
+      requests.splice(0, requests.length - 100);
     }
   },
   { urls: ["<all_urls>"] },
