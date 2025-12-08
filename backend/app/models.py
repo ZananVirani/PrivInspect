@@ -47,7 +47,8 @@ class PrivacyFeatures(BaseModel):
     num_third_party_domains: int = 0       # Feature 1
     num_third_party_scripts: int = 0       # Feature 2
     num_third_party_cookies: int = 0       # Feature 3
-    fraction_third_party_requests: float = 0.0  # Feature 4
+    num_third_party_requests: int = 0      # Feature 4a - Number of third-party requests
+    fraction_third_party_requests: float = 0.0  # Feature 4b - Fraction of third-party requests
     num_known_tracker_domains: int = 0     # Feature 5
     num_persistent_cookies: int = 0        # Feature 6
     has_analytics_global: int = 0          # Feature 7 (boolean as int)

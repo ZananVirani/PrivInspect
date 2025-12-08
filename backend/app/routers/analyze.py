@@ -168,7 +168,7 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             if is_known_tracker(cookie.domain):
                 tracker_domains.add(cookie.domain)
     
-    # Feature 1: Number of unique third-party domains (across ALL sources)
+    # Feature 1: Number of unique third-party domains (across ALL sources: scripts, cookies, requests)
     features.num_third_party_domains = len(third_party_domains)
     
     # Feature 2: Number of third-party scripts - backend computes third-party status
@@ -185,7 +185,10 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             third_party_cookies += 1
     features.num_third_party_cookies = third_party_cookies
     
-    # Feature 4: Fraction of requests that are third-party
+    # Feature 4a: Number of third-party requests
+    features.num_third_party_requests = third_party_request_count
+    
+    # Feature 4b: Fraction of requests that are third-party
     total_requests = len(data.network_requests)
     features.fraction_third_party_requests = (
         third_party_request_count / total_requests if total_requests > 0 else 0.0
@@ -256,7 +259,8 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     logger.info(f"  Feature 1 - Third-party domains: {features.num_third_party_domains}")
     logger.info(f"  Feature 2 - Third-party scripts: {features.num_third_party_scripts}")
     logger.info(f"  Feature 3 - Third-party cookies: {features.num_third_party_cookies}")
-    logger.info(f"  Feature 4 - Third-party request fraction: {features.fraction_third_party_requests:.3f}")
+    logger.info(f"  Feature 4a - Third-party requests: {features.num_third_party_requests}")
+    logger.info(f"  Feature 4b - Third-party request fraction: {features.fraction_third_party_requests:.3f}")
     logger.info(f"  Feature 5 - Known tracker domains: {features.num_known_tracker_domains}")
     logger.info(f"  Feature 6 - Persistent cookies: {features.num_persistent_cookies}")
     logger.info(f"  Feature 7 - Has analytics globals: {features.has_analytics_global}")
