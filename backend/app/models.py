@@ -94,6 +94,10 @@ class AnalyzeResponse(BaseModel):
     # Feature extraction results (what backend computed)
     computed_features: Optional[PrivacyFeatures] = None
     
+    # Privacy score breakdown
+    score_breakdown: Optional[Dict[str, Any]] = None
+    privacy_grade: Optional[str] = None
+    
     # Detailed findings
     findings: List[str] = []
     recommendations: List[str] = []

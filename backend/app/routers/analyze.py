@@ -268,8 +268,9 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     logger.info(f"  Feature 9 - Fingerprinting detected: {features.fingerprinting_flag}")
     logger.info(f"  Feature 10 - Tracker script ratio: {features.tracker_script_ratio:.3f}")
     
-    # Compute privacy score based on features
-    privacy_score = calculate_privacy_score(features)
+    # Compute privacy score using hybrid ML + heuristics system
+    score_result = compute_privacy_score(features)
+    privacy_score = int(score_result["score"])  # Convert to int for backward compatibility
     
     # Generate findings and recommendations
     findings = []
@@ -344,6 +345,8 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         "cookies_analyzed": len(data.raw_cookies),
         "scripts_analyzed": len(data.scripts),
         "computed_features": features,
+        "score_breakdown": score_result["breakdown"],
+        "privacy_grade": score_result["grade_letter"],
         "findings": findings,
         "recommendations": recommendations,
         "third_party_domains": list(third_party_domains_for_response),
@@ -351,6 +354,154 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         "privacy_level": privacy_level,
         "risk_factors": risk_factors
     }
+
+def compute_privacy_score(features: PrivacyFeatures) -> dict:
+    """
+    Hybrid ML + Heuristics Privacy Scoring System
+    
+    Returns a privacy score with detailed breakdown.
+    ML score starts at 100 (perfectly safe), then heuristics adjust downward.
+    """
+    # Start with ML model score (placeholder: always 100 for now)
+    ml_score = 100.0
+    
+    # Initialize penalty calculations
+    penalties = {}
+    total_penalty = 0.0
+    
+    # (1) num_third_party_domains penalty
+    domains = features.num_third_party_domains
+    if domains == 0:
+        penalties["third_party_domains"] = 0.0
+    elif 1 <= domains <= 3:
+        penalties["third_party_domains"] = -2.0
+    elif 4 <= domains <= 7:
+        penalties["third_party_domains"] = -4.0
+    else:  # 8+
+        penalties["third_party_domains"] = -6.0
+    
+    # (2) num_third_party_scripts penalty
+    scripts = features.num_third_party_scripts
+    if 0 <= scripts <= 2:
+        penalties["third_party_scripts"] = 0.0
+    elif 3 <= scripts <= 6:
+        penalties["third_party_scripts"] = -2.0
+    elif 7 <= scripts <= 15:
+        penalties["third_party_scripts"] = -4.0
+    else:  # 16+
+        penalties["third_party_scripts"] = -6.0
+    
+    # (3) num_third_party_cookies penalty
+    cookies = features.num_third_party_cookies
+    if cookies == 0:
+        penalties["third_party_cookies"] = 0.0
+    elif 1 <= cookies <= 2:
+        penalties["third_party_cookies"] = -2.0
+    elif 3 <= cookies <= 6:
+        penalties["third_party_cookies"] = -4.0
+    else:  # 7+
+        penalties["third_party_cookies"] = -6.0
+    
+    # (4) fraction_third_party_requests penalty
+    fraction = features.fraction_third_party_requests
+    if fraction < 0.10:
+        penalties["third_party_requests"] = 0.0
+    elif 0.10 <= fraction <= 0.30:
+        penalties["third_party_requests"] = -2.0
+    elif 0.30 < fraction <= 0.60:
+        penalties["third_party_requests"] = -4.0
+    else:  # > 0.60
+        penalties["third_party_requests"] = -6.0
+    
+    # (5) num_known_tracker_domains penalty (largest single penalty)
+    trackers = features.num_known_tracker_domains
+    if trackers == 0:
+        penalties["tracker_domains"] = 0.0
+    elif trackers == 1:
+        penalties["tracker_domains"] = -4.0
+    elif trackers == 2:
+        penalties["tracker_domains"] = -6.0
+    else:  # 3+
+        penalties["tracker_domains"] = -10.0
+    
+    # (6) num_persistent_cookies penalty
+    persistent = features.num_persistent_cookies
+    if 0 <= persistent <= 1:
+        penalties["persistent_cookies"] = 0.0
+    elif 2 <= persistent <= 5:
+        penalties["persistent_cookies"] = -2.0
+    elif 6 <= persistent <= 10:
+        penalties["persistent_cookies"] = -4.0
+    else:  # 10+
+        penalties["persistent_cookies"] = -6.0
+    
+    # (7) has_analytics_global penalty
+    if features.has_analytics_global == 1:
+        penalties["analytics_global"] = -3.0
+    else:
+        penalties["analytics_global"] = 0.0
+    
+    # (8) num_inline_scripts penalty
+    inline = features.num_inline_scripts
+    if 0 <= inline <= 2:
+        penalties["inline_scripts"] = 0.0
+    elif 3 <= inline <= 6:
+        penalties["inline_scripts"] = -2.0
+    elif 6 < inline <= 10:
+        penalties["inline_scripts"] = -3.0
+    else:  # 11+
+        penalties["inline_scripts"] = -5.0
+    
+    # (9) fingerprinting_flag penalty
+    if features.fingerprinting_flag == 1:
+        penalties["fingerprinting"] = -8.0
+    else:
+        penalties["fingerprinting"] = 0.0
+    
+    # (10) tracker_script_ratio penalty
+    ratio = features.tracker_script_ratio
+    if 0.00 <= ratio <= 0.05:
+        penalties["tracker_script_ratio"] = 0.0
+    elif 0.05 < ratio <= 0.15:
+        penalties["tracker_script_ratio"] = -2.0
+    elif 0.15 < ratio <= 0.30:
+        penalties["tracker_script_ratio"] = -4.0
+    else:  # 0.30+
+        penalties["tracker_script_ratio"] = -6.0
+    
+    # Calculate total penalty and apply cap
+    total_penalty = sum(penalties.values())
+    capped_penalty = max(total_penalty, -20.0)  # Cap at -20
+    
+    # Calculate final score
+    final_score = ml_score + capped_penalty
+    final_score = max(0.0, min(100.0, final_score))  # Clamp 0-100
+    
+    # Determine letter grade
+    if 90.0 <= final_score <= 100.0:
+        grade = "A"
+    elif 75.0 <= final_score < 90.0:
+        grade = "B"
+    elif 60.0 <= final_score < 75.0:
+        grade = "C"
+    elif 40.0 <= final_score < 60.0:
+        grade = "D"
+    else:  # 0-39
+        grade = "F"
+    
+    return {
+        "score": final_score,
+        "grade_letter": grade,
+        "breakdown": {
+            "ml_base_score": ml_score,
+            "total_penalty_applied": capped_penalty,
+            "total_penalty_raw": total_penalty,
+            "penalty_cap_applied": capped_penalty != total_penalty,
+            "individual_penalties": penalties,
+            "final_score": final_score
+        }
+    }
+
 
 def calculate_privacy_score(features: PrivacyFeatures) -> int:
     """Calculate privacy score from 0-100 based on features."""
