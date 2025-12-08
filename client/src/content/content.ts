@@ -4,9 +4,6 @@ import { getDomainFromUrl } from "../utils/trackerDetection";
 // Track network requests (fallback for content script level tracking)
 const networkRequests: Array<{
   url: string;
-  method: string;
-  type: string;
-  timestamp: string;
 }> = [];
 
 // Analytics globals detection for feature 7: has_analytics_global
@@ -47,14 +44,9 @@ let fingerprintingFlags: FingerprintingFlags = {
 const originalFetch = window.fetch;
 window.fetch = function (...args) {
   const url = args[0] instanceof Request ? args[0].url : (args[0] as string);
-  const method =
-    args[1]?.method || (args[0] instanceof Request ? args[0].method : "GET");
 
   const requestData = {
     url: url,
-    method: method,
-    type: "fetch",
-    timestamp: new Date().toISOString(),
   };
 
   networkRequests.push(requestData);
@@ -72,9 +64,6 @@ XMLHttpRequest.prototype.open = function (
 ) {
   const requestData = {
     url: url.toString(),
-    method: method,
-    type: "xhr",
-    timestamp: new Date().toISOString(),
   };
 
   networkRequests.push(requestData);
@@ -227,45 +216,42 @@ async function collectComprehensivePrivacyData() {
   });
 
   // Further filter and prioritize requests for backend analysis
-  const filteredRequests = (networkRequestsResponse as any[])
-    .filter((req) => {
-      const url = req.url.toLowerCase();
+  const filteredRequests = (networkRequestsResponse as any[]).filter((req) => {
+    const url = req.url.toLowerCase();
 
-      // Prioritize tracking and analytics requests
-      const highPriorityKeywords = [
-        "analytics",
-        "tracking",
-        "tracker",
-        "ads",
-        "doubleclick",
-        "googletagmanager",
-        "facebook",
-        "twitter",
-        "linkedin",
-        "hotjar",
-        "mixpanel",
-        "segment",
-        "amplitude",
-        "intercom",
-        "google-analytics",
-        "gtag",
-        "fbq",
-        "pixel",
-      ];
+    // Prioritize tracking and analytics requests
+    const highPriorityKeywords = [
+      "analytics",
+      "tracking",
+      "tracker",
+      "ads",
+      "doubleclick",
+      "googletagmanager",
+      "facebook",
+      "twitter",
+      "linkedin",
+      "hotjar",
+      "mixpanel",
+      "segment",
+      "amplitude",
+      "intercom",
+      "google-analytics",
+      "gtag",
+      "fbq",
+      "pixel",
+    ];
 
-      const isHighPriority = highPriorityKeywords.some((keyword) =>
-        url.includes(keyword)
-      );
-      const isThirdParty =
-        getDomainFromUrl(req.url) !== window.location.hostname;
-      const isApiCall = req.type === "xmlhttprequest" || req.type === "other";
+    const isHighPriority = highPriorityKeywords.some((keyword) =>
+      url.includes(keyword)
+    );
+    const isThirdParty = getDomainFromUrl(req.url) !== window.location.hostname;
+    const isApiCall = req.type === "xmlhttprequest" || req.type === "other";
 
-      // Include if it's high priority tracking, third-party API calls, or scripts
-      return (
-        isHighPriority || (isThirdParty && (isApiCall || req.type === "script"))
-      );
-    })
-    .slice(0, 50); // Limit to 50 most relevant requests to prevent payload issues
+    // Include if it's high priority tracking, third-party API calls, or scripts
+    return (
+      isHighPriority || (isThirdParty && (isApiCall || req.type === "script"))
+    );
+  });
 
   return {
     page_url: window.location.href,

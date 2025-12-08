@@ -120,12 +120,6 @@ chrome.webRequest.onBeforeRequest.addListener(
       tabNetworkRequests.set(details.tabId, []);
     }
     tabNetworkRequests.get(details.tabId)!.push(requestData);
-
-    // Keep only last 100 requests per tab (reduced from 500)
-    const requests = tabNetworkRequests.get(details.tabId)!;
-    if (requests.length > 100) {
-      requests.splice(0, requests.length - 100);
-    }
   },
   { urls: ["<all_urls>"] },
   ["requestBody"]
