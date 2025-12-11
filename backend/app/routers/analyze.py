@@ -458,70 +458,70 @@ def compute_privacy_score(features: PrivacyFeatures) -> dict:
     if domains == 0:
         penalties["third_party_domains"] = 0.0
     elif 1 <= domains <= 3:
-        penalties["third_party_domains"] = -2.0
+        penalties["third_party_domains"] = -1.0  # -2/2 = -1
     elif 4 <= domains <= 7:
-        penalties["third_party_domains"] = -4.0
+        penalties["third_party_domains"] = -2.0  # -4/2 = -2
     else:  # 8+
-        penalties["third_party_domains"] = -6.0
+        penalties["third_party_domains"] = -3.0  # -6/2 = -3
     
     # (2) num_third_party_scripts penalty
     scripts = features.num_third_party_scripts
     if 0 <= scripts <= 2:
         penalties["third_party_scripts"] = 0.0
     elif 3 <= scripts <= 6:
-        penalties["third_party_scripts"] = -2.0
+        penalties["third_party_scripts"] = -1.0  # -2/2 = -1
     elif 7 <= scripts <= 15:
-        penalties["third_party_scripts"] = -4.0
+        penalties["third_party_scripts"] = -2.0  # -4/2 = -2
     else:  # 16+
-        penalties["third_party_scripts"] = -6.0
+        penalties["third_party_scripts"] = -3.0  # -6/2 = -3
     
     # (3) num_third_party_cookies penalty
     cookies = features.num_third_party_cookies
     if cookies == 0:
         penalties["third_party_cookies"] = 0.0
     elif 1 <= cookies <= 2:
-        penalties["third_party_cookies"] = -2.0
+        penalties["third_party_cookies"] = -1.0  # -2/2 = -1
     elif 3 <= cookies <= 6:
-        penalties["third_party_cookies"] = -4.0
+        penalties["third_party_cookies"] = -2.0  # -4/2 = -2
     else:  # 7+
-        penalties["third_party_cookies"] = -6.0
+        penalties["third_party_cookies"] = -3.0  # -6/2 = -3
     
     # (4) fraction_third_party_requests penalty
     fraction = features.fraction_third_party_requests
     if fraction < 0.10:
         penalties["third_party_requests"] = 0.0
     elif 0.10 <= fraction <= 0.30:
-        penalties["third_party_requests"] = -2.0
+        penalties["third_party_requests"] = -1.0  # -2/2 = -1
     elif 0.30 < fraction <= 0.60:
-        penalties["third_party_requests"] = -4.0
+        penalties["third_party_requests"] = -2.0  # -4/2 = -2
     else:  # > 0.60
-        penalties["third_party_requests"] = -6.0
+        penalties["third_party_requests"] = -3.0  # -6/2 = -3
     
     # (5) num_known_tracker_domains penalty (largest single penalty)
     trackers = features.num_known_tracker_domains
     if trackers == 0:
         penalties["tracker_domains"] = 0.0
     elif trackers == 1:
-        penalties["tracker_domains"] = -4.0
+        penalties["tracker_domains"] = -2.0  # -4/2 = -2
     elif trackers == 2:
-        penalties["tracker_domains"] = -6.0
+        penalties["tracker_domains"] = -3.0  # -6/2 = -3
     else:  # 3+
-        penalties["tracker_domains"] = -10.0
+        penalties["tracker_domains"] = -5.0  # -10/2 = -5
     
     # (6) num_persistent_cookies penalty
     persistent = features.num_persistent_cookies
     if 0 <= persistent <= 1:
         penalties["persistent_cookies"] = 0.0
     elif 2 <= persistent <= 5:
-        penalties["persistent_cookies"] = -2.0
+        penalties["persistent_cookies"] = -1.0  # -2/2 = -1
     elif 6 <= persistent <= 10:
-        penalties["persistent_cookies"] = -4.0
+        penalties["persistent_cookies"] = -2.0  # -4/2 = -2
     else:  # 10+
-        penalties["persistent_cookies"] = -6.0
+        penalties["persistent_cookies"] = -3.0  # -6/2 = -3
     
     # (7) has_analytics_global penalty
     if features.has_analytics_global == 1:
-        penalties["analytics_global"] = -3.0
+        penalties["analytics_global"] = -2.0  # -3/2 = -1.5, rounded to -2
     else:
         penalties["analytics_global"] = 0.0
     
@@ -530,15 +530,15 @@ def compute_privacy_score(features: PrivacyFeatures) -> dict:
     if 0 <= inline <= 2:
         penalties["inline_scripts"] = 0.0
     elif 3 <= inline <= 6:
-        penalties["inline_scripts"] = -2.0
+        penalties["inline_scripts"] = -1.0  # -2/2 = -1
     elif 6 < inline <= 10:
-        penalties["inline_scripts"] = -3.0
+        penalties["inline_scripts"] = -2.0  # -3/2 = -1.5, rounded to -2
     else:  # 11+
-        penalties["inline_scripts"] = -5.0
+        penalties["inline_scripts"] = -3.0  # -5/2 = -2.5, rounded to -3
     
     # (9) fingerprinting_flag penalty
     if features.fingerprinting_flag == 1:
-        penalties["fingerprinting"] = -8.0
+        penalties["fingerprinting"] = -4.0  # -8/2 = -4
     else:
         penalties["fingerprinting"] = 0.0
     
@@ -547,13 +547,13 @@ def compute_privacy_score(features: PrivacyFeatures) -> dict:
     if 0.00 <= ratio <= 0.05:
         penalties["tracker_script_ratio"] = 0.0
     elif 0.05 < ratio <= 0.15:
-        penalties["tracker_script_ratio"] = -2.0
+        penalties["tracker_script_ratio"] = -1.0  # -2/2 = -1
     elif 0.15 < ratio <= 0.30:
-        penalties["tracker_script_ratio"] = -4.0
+        penalties["tracker_script_ratio"] = -2.0  # -4/2 = -2
     else:  # 0.30+
-        penalties["tracker_script_ratio"] = -6.0
+        penalties["tracker_script_ratio"] = -3.0  # -6/2 = -3
     
-    # Calculate total penalty and apply cap
+    # Calculate total penalty and apply cap (also reduced by half)
     total_penalty = sum(penalties.values())
     capped_penalty = max(total_penalty, -20.0)  # Cap at -20
     
