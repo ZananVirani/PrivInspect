@@ -108,7 +108,6 @@ class AnalyzeResponse(BaseModel):
     
     # Privacy assessment
     privacy_level: Optional[str] = None  # "low", "medium", "high"
-    risk_factors: List[str] = []
 
 class AuthResponse(BaseModel):
     """Response model for authentication endpoint."""

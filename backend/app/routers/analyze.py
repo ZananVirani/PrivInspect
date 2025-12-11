@@ -272,41 +272,125 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     score_result = compute_privacy_score(features)
     privacy_score = int(score_result["score"])  # Convert to int for backward compatibility
     
-    # Generate findings and recommendations
+    # Generate findings and recommendations based on heuristic penalties
     findings = []
     recommendations = []
-    risk_factors = []
     
-    if features.num_third_party_domains > 10:
-        findings.append(f"High number of third-party domains ({features.num_third_party_domains})")
-        recommendations.append("Consider using a tracker blocker")
-        risk_factors.append("excessive_third_parties")
+    # Get the individual penalties from score breakdown
+    penalties = score_result["breakdown"]["individual_penalties"]
     
-    if features.num_known_tracker_domains > 0:
-        findings.append(f"Known tracking domains detected ({features.num_known_tracker_domains})")
-        recommendations.append("Enable enhanced tracking protection")
-        risk_factors.append("known_trackers")
+    # Generate findings and recommendations based on which heuristics triggered penalties
+    if penalties["third_party_domains"] < 0:
+        domains = features.num_third_party_domains
+        if domains >= 8:
+            findings.append(f"Excessive third-party domains detected ({domains} domains)")
+            recommendations.append("Use a tracker blocker or privacy-focused browser")
+        elif domains >= 4:
+            findings.append(f"High number of third-party domains ({domains} domains)")
+            recommendations.append("Consider enabling enhanced tracking protection")
+        else:
+            findings.append(f"Some third-party domains present ({domains} domains)")
+            recommendations.append("Monitor third-party content for privacy")
     
-    if features.has_analytics_global:
-        findings.append("Analytics tracking detected")
-        risk_factors.append("analytics_tracking")
+    if penalties["third_party_scripts"] < 0:
+        scripts = features.num_third_party_scripts
+        if scripts >= 16:
+            findings.append(f"Very high number of third-party scripts ({scripts} scripts)")
+            recommendations.append("Use script blockers to reduce tracking exposure")
+        elif scripts >= 7:
+            findings.append(f"High number of third-party scripts ({scripts} scripts)")
+            recommendations.append("Review and limit third-party script loading")
+        else:
+            findings.append(f"Moderate third-party script usage ({scripts} scripts)")
+            recommendations.append("Monitor script sources for privacy compliance")
     
-    if features.fingerprinting_flag:
-        findings.append("Fingerprinting techniques detected")
-        recommendations.append("Use fingerprinting protection")
-        risk_factors.append("fingerprinting")
+    if penalties["third_party_cookies"] < 0:
+        cookies = features.num_third_party_cookies
+        if cookies >= 7:
+            findings.append(f"Excessive third-party cookies ({cookies} cookies)")
+            recommendations.append("Clear cookies regularly and block third-party cookies")
+        elif cookies >= 3:
+            findings.append(f"Multiple third-party cookies detected ({cookies} cookies)")
+            recommendations.append("Consider blocking third-party cookies in browser settings")
+        else:
+            findings.append(f"Some third-party cookies present ({cookies} cookies)")
+            recommendations.append("Review cookie settings for privacy")
     
-    if features.num_persistent_cookies > 5:
-        findings.append(f"Many persistent cookies ({features.num_persistent_cookies})")
-        recommendations.append("Regularly clear cookies")
-        risk_factors.append("persistent_cookies")
+    if penalties["third_party_requests"] < 0:
+        fraction = features.fraction_third_party_requests
+        if fraction > 0.60:
+            findings.append(f"Very high third-party request ratio ({fraction:.1%} of requests)")
+            recommendations.append("Use comprehensive ad and tracker blocking")
+        elif fraction > 0.30:
+            findings.append(f"High third-party request ratio ({fraction:.1%} of requests)")
+            recommendations.append("Enable strict privacy protection in browser")
+        else:
+            findings.append(f"Moderate third-party request activity ({fraction:.1%} of requests)")
+            recommendations.append("Monitor network requests for privacy")
     
-    # Determine privacy level
-    privacy_level = "high"
-    if len(risk_factors) >= 3 or features.num_known_tracker_domains > 5:
-        privacy_level = "low"
-    elif len(risk_factors) >= 1:
+    if penalties["tracker_domains"] < 0:
+        trackers = features.num_known_tracker_domains
+        if trackers >= 3:
+            findings.append(f"Multiple known tracking services detected ({trackers} trackers)")
+            recommendations.append("Use comprehensive tracker blocking immediately")
+        elif trackers == 2:
+            findings.append(f"Known tracking services detected ({trackers} trackers)")
+            recommendations.append("Enable enhanced tracking protection")
+        else:
+            findings.append(f"Known tracking service detected ({trackers} tracker)")
+            recommendations.append("Consider using privacy-focused browser extensions")
+    
+    if penalties["persistent_cookies"] < 0:
+        persistent = features.num_persistent_cookies
+        if persistent >= 10:
+            findings.append(f"Excessive persistent cookies ({persistent} long-term cookies)")
+            recommendations.append("Clear cookies and enable automatic cookie deletion")
+        elif persistent >= 6:
+            findings.append(f"High number of persistent cookies ({persistent} long-term cookies)")
+            recommendations.append("Configure browser to limit cookie lifetime")
+        else:
+            findings.append(f"Some persistent cookies detected ({persistent} long-term cookies)")
+            recommendations.append("Review cookie retention settings")
+    
+    if penalties["analytics_global"] < 0:
+        findings.append("Website analytics tracking detected")
+        recommendations.append("Use privacy-focused search engines and browsers")
+    
+    if penalties["inline_scripts"] < 0:
+        inline = features.num_inline_scripts
+        if inline >= 11:
+            findings.append(f"Excessive inline scripts ({inline} embedded scripts)")
+            recommendations.append("Use strict content security policies")
+        elif inline >= 7:
+            findings.append(f"High number of inline scripts ({inline} embedded scripts)")
+            recommendations.append("Enable script blocking for enhanced security")
+        else:
+            findings.append(f"Multiple inline scripts detected ({inline} embedded scripts)")
+            recommendations.append("Monitor inline script content for privacy")
+    
+    if penalties["fingerprinting"] < 0:
+        findings.append("Browser fingerprinting techniques detected")
+        recommendations.append("Use fingerprint-resistant browser or enable fingerprint protection")
+    
+    if penalties["tracker_script_ratio"] < 0:
+        ratio = features.tracker_script_ratio
+        if ratio >= 0.30:
+            findings.append(f"Very high tracker script ratio ({ratio:.1%} of scripts are trackers)")
+            recommendations.append("Use aggressive script blocking and privacy tools")
+        elif ratio >= 0.15:
+            findings.append(f"High tracker script ratio ({ratio:.1%} of scripts are trackers)")
+            recommendations.append("Enable comprehensive script filtering")
+        else:
+            findings.append(f"Some tracking scripts detected ({ratio:.1%} of scripts are trackers)")
+            recommendations.append("Consider using script blockers")
+    
+    # Determine privacy level based on final score
+    if score_result["score"] >= 90:
+        privacy_level = "high"
+    elif score_result["score"] >= 75:
         privacy_level = "medium"
+    else:
+        privacy_level = "low"
     
     # Extract unique third-party domains and trackers for response (from ALL sources)
     third_party_domains_for_response = set()
@@ -336,9 +420,10 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
             if is_known_tracker(cookie.domain):
                 known_trackers_for_response.add(cookie.domain)
     
+    # Add fallback message if no issues detected
     if not findings:
         findings.append("No significant privacy issues detected")
-        recommendations.append("Website appears to have good privacy practices")
+        recommendations.append("Website demonstrates good privacy practices")
     
     return {
         "privacy_score": privacy_score,
@@ -351,8 +436,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         "recommendations": recommendations,
         "third_party_domains": list(third_party_domains_for_response),
         "known_trackers": list(known_trackers_for_response),
-        "privacy_level": privacy_level,
-        "risk_factors": risk_factors
+        "privacy_level": privacy_level
     }
 
 def compute_privacy_score(features: PrivacyFeatures) -> dict:
