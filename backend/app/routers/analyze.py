@@ -7,6 +7,7 @@ from app.middleware import validate_extension_headers
 from app.routers.auth import verify_jwt_token
 from app.models import AnalyzeRequest, AnalyzeResponse, PrivacyFeatures
 from app.security.extension_auth import validate_extension_request
+from app.ml_scoring import get_ml_score_for_page
 import json
 import re
 
@@ -269,7 +270,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     logger.info(f"  Feature 10 - Tracker script ratio: {features.tracker_script_ratio:.3f}")
     
     # Compute privacy score using hybrid ML + heuristics system
-    score_result = compute_privacy_score(features)
+    score_result = compute_privacy_score(features, data)  # Pass original data for ML scoring
     privacy_score = int(score_result["score"])  # Convert to int for backward compatibility
     
     # Generate findings and recommendations based on heuristic penalties
@@ -439,15 +440,24 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         "privacy_level": privacy_level
     }
 
-def compute_privacy_score(features: PrivacyFeatures) -> dict:
+def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeRequest = None) -> dict:
     """
     Hybrid ML + Heuristics Privacy Scoring System
     
     Returns a privacy score with detailed breakdown.
-    ML score starts at 100 (perfectly safe), then heuristics adjust downward.
+    ML score starts at domain-based prediction, then heuristics adjust downward.
     """
-    # Start with ML model score (placeholder: always 100 for now)
-    ml_score = 100.0
+    # Get ML model prediction for domain-based scoring
+    try:
+        if analyze_request:
+            # Use original request data for ML scoring (contains actual domains)
+            ml_score = get_ml_score_for_page(analyze_request)
+        else:
+            # Fallback for when only features are available
+            ml_score = get_ml_score_for_page(features)
+    except Exception as e:
+        logger.warning(f"ML scoring failed, using fallback: {e}")
+        ml_score = 100.0  # Fallback to safe default
     
     # Initialize penalty calculations
     penalties = {}

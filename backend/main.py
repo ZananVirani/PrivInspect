@@ -14,6 +14,7 @@ import json
 from app.config import settings
 from app.routers import auth, analyze
 from app.middleware import SecurityMiddleware
+from app.ml_scoring import router as ml_router, initialize_domain_scoring
 
 # Configure logging
 logging.basicConfig(
@@ -24,19 +25,24 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize Redis connection for rate limiting on startup."""
+    """Initialize Redis connection for rate limiting and ML models on startup."""
     try:
         # Connect to Redis
         redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
         await FastAPILimiter.init(redis_client)
         logger.info("Redis connection established for rate limiting")
+        
+        # Initialize ML domain scoring
+        initialize_domain_scoring()
+        logger.info("ML domain scoring service initialized")
+        
         yield
     except Exception as e:
-        logger.error(f"Failed to connect to Redis: {e}")
+        logger.error(f"Failed to initialize services: {e}")
         raise
     finally:
         await FastAPILimiter.close()
-        logger.info("Redis connection closed")
+        logger.info("Services shutdown complete")
 
 # Create FastAPI application
 app = FastAPI(
@@ -201,6 +207,12 @@ app.include_router(
     analyze.router,
     prefix="/api/v1",
     dependencies=[Depends(RateLimiter(times=20, seconds=60))]   # 20 requests per minute for analysis
+)
+
+app.include_router(
+    ml_router,
+    prefix="/api/v1",
+    dependencies=[Depends(RateLimiter(times=10, seconds=60))]   # 10 requests per minute for ML scoring
 )
 
 if __name__ == "__main__":
