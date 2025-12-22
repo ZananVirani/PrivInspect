@@ -94,16 +94,39 @@ class TrackerRadarParser:
             
             domain_name = json_path.stem
             
+            # Get base fingerprinting score
+            base_fingerprinting = data.get('fingerprinting', 0)
+            
+            # Create category-based tracking score
+            categories = data.get('categories', [])
+            tracking_categories = [
+                'Ad Motivated Tracking', 'Advertising', 'Analytics', 
+                'Audience Measurement', 'Third-Party Analytics Marketing',
+                'Cross-site Tracking', 'Fingerprinting'
+            ]
+            
+            # Count how many tracking categories this domain has
+            tracking_category_count = sum(1 for cat in categories if cat in tracking_categories)
+            category_tracking_score = min(3, tracking_category_count)  # Cap at 3
+            
+            # Combine fingerprinting with category-based score
+            # Use max to ensure domains with tracking categories get appropriate scores
+            enhanced_fingerprinting = max(base_fingerprinting, category_tracking_score)
+            
+            # Reduce num_resources importance by 50% through feature scaling
+            raw_num_resources = len(data.get('resources', []))
+            scaled_num_resources = raw_num_resources * 0.5  # Reduce importance by 50%
+            
             # Extract basic features
             features = {
                 'domain': domain_name,
-                'fingerprinting': data.get('fingerprinting', 0),
+                'fingerprinting': enhanced_fingerprinting,
                 'cookies_prevalence': data.get('cookies', 0.0),
                 'global_prevalence': data.get('prevalence', 0.0),
                 'num_sites': data.get('sites', 0),
                 'num_subdomains': len(data.get('subdomains', [])),
                 'num_cnames': len(data.get('cnames', [])),
-                'num_resources': len(data.get('resources', [])),
+                'num_resources': scaled_num_resources,
                 'num_top_initiators': len(data.get('topInitiators', [])),
                 'owner_present': 1 if data.get('owner') else 0,
             }
