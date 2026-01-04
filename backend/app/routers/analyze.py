@@ -463,109 +463,115 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     penalties = {}
     total_penalty = 0.0
     
-    # (1) num_third_party_domains penalty
-    domains = features.num_third_party_domains
-    if domains == 0:
+    # (1) third_party_domains penalty (proportion-based)
+    total_domains = features.num_third_party_domains + 1  # +1 to avoid division by zero (main domain)
+    third_party_ratio = features.num_third_party_domains / total_domains
+    if third_party_ratio < 0.30:  # Less than 30% third-party
         penalties["third_party_domains"] = 0.0
-    elif 1 <= domains <= 3:
-        penalties["third_party_domains"] = -1.0  # -2/2 = -1
-    elif 4 <= domains <= 7:
-        penalties["third_party_domains"] = -2.0  # -4/2 = -2
-    else:  # 8+
-        penalties["third_party_domains"] = -3.0  # -6/2 = -3
+    elif third_party_ratio < 0.60:  # 30-60% third-party
+        penalties["third_party_domains"] = -0.5
+    elif third_party_ratio < 0.80:  # 60-80% third-party
+        penalties["third_party_domains"] = -1.0
+    else:  # 80%+ third-party
+        penalties["third_party_domains"] = -1.5
     
-    # (2) num_third_party_scripts penalty
+    # (2) third_party_scripts penalty (gentler thresholds)
     scripts = features.num_third_party_scripts
-    if 0 <= scripts <= 2:
+    if scripts <= 3:
         penalties["third_party_scripts"] = 0.0
-    elif 3 <= scripts <= 6:
-        penalties["third_party_scripts"] = -1.0  # -2/2 = -1
-    elif 7 <= scripts <= 15:
-        penalties["third_party_scripts"] = -2.0  # -4/2 = -2
+    elif scripts <= 8:
+        penalties["third_party_scripts"] = -0.5
+    elif scripts <= 15:
+        penalties["third_party_scripts"] = -1.0
     else:  # 16+
-        penalties["third_party_scripts"] = -3.0  # -6/2 = -3
+        penalties["third_party_scripts"] = -1.5
     
-    # (3) num_third_party_cookies penalty
+    # (3) third_party_cookies penalty (gentler)
     cookies = features.num_third_party_cookies
-    if cookies == 0:
+    if cookies <= 1:
         penalties["third_party_cookies"] = 0.0
-    elif 1 <= cookies <= 2:
-        penalties["third_party_cookies"] = -1.0  # -2/2 = -1
-    elif 3 <= cookies <= 6:
-        penalties["third_party_cookies"] = -2.0  # -4/2 = -2
-    else:  # 7+
-        penalties["third_party_cookies"] = -3.0  # -6/2 = -3
+    elif cookies <= 4:
+        penalties["third_party_cookies"] = -0.5
+    elif cookies <= 8:
+        penalties["third_party_cookies"] = -1.0
+    else:  # 9+
+        penalties["third_party_cookies"] = -1.5
     
-    # (4) fraction_third_party_requests penalty
+    # (4) fraction_third_party_requests penalty (gentler)
     fraction = features.fraction_third_party_requests
-    if fraction < 0.10:
+    if fraction < 0.20:  # Less than 20% third-party requests
         penalties["third_party_requests"] = 0.0
-    elif 0.10 <= fraction <= 0.30:
-        penalties["third_party_requests"] = -1.0  # -2/2 = -1
-    elif 0.30 < fraction <= 0.60:
-        penalties["third_party_requests"] = -2.0  # -4/2 = -2
-    else:  # > 0.60
-        penalties["third_party_requests"] = -3.0  # -6/2 = -3
+    elif fraction <= 0.50:  # 20-50% third-party requests
+        penalties["third_party_requests"] = -0.5
+    elif fraction <= 0.75:  # 50-75% third-party requests
+        penalties["third_party_requests"] = -1.0
+    else:  # > 75% third-party requests
+        penalties["third_party_requests"] = -1.5
     
-    # (5) num_known_tracker_domains penalty (largest single penalty)
+    # (5) known_tracker_domains penalty (much gentler)
     trackers = features.num_known_tracker_domains
     if trackers == 0:
         penalties["tracker_domains"] = 0.0
     elif trackers == 1:
-        penalties["tracker_domains"] = -2.0  # -4/2 = -2
-    elif trackers == 2:
-        penalties["tracker_domains"] = -3.0  # -6/2 = -3
-    else:  # 3+
-        penalties["tracker_domains"] = -5.0  # -10/2 = -5
+        penalties["tracker_domains"] = -1.0
+    elif trackers <= 3:
+        penalties["tracker_domains"] = -1.5
+    else:  # 4+
+        penalties["tracker_domains"] = -2.5
     
-    # (6) num_persistent_cookies penalty
-    persistent = features.num_persistent_cookies
-    if 0 <= persistent <= 1:
+    # (6) persistent_cookies penalty (proportion-based)
+    total_cookies = features.num_third_party_cookies + features.num_persistent_cookies
+    if total_cookies == 0:
         penalties["persistent_cookies"] = 0.0
-    elif 2 <= persistent <= 5:
-        penalties["persistent_cookies"] = -1.0  # -2/2 = -1
-    elif 6 <= persistent <= 10:
-        penalties["persistent_cookies"] = -2.0  # -4/2 = -2
-    else:  # 10+
-        penalties["persistent_cookies"] = -3.0  # -6/2 = -3
+    else:
+        persistent_ratio = features.num_persistent_cookies / total_cookies
+        if persistent_ratio < 0.30:  # Less than 30% persistent
+            penalties["persistent_cookies"] = 0.0
+        elif persistent_ratio < 0.60:  # 30-60% persistent
+            penalties["persistent_cookies"] = -0.5
+        else:  # 60%+ persistent
+            penalties["persistent_cookies"] = -1.0
     
-    # (7) has_analytics_global penalty
+    # (7) has_analytics_global penalty (reduced)
     if features.has_analytics_global == 1:
-        penalties["analytics_global"] = -2.0  # -3/2 = -1.5, rounded to -2
+        penalties["analytics_global"] = -1.0
     else:
         penalties["analytics_global"] = 0.0
     
-    # (8) num_inline_scripts penalty
-    inline = features.num_inline_scripts
-    if 0 <= inline <= 2:
+    # (8) inline_scripts penalty (proportion-based and gentler)
+    # Calculate total scripts (third-party + inline)
+    total_scripts = features.num_third_party_scripts + features.num_inline_scripts
+    if total_scripts == 0:
         penalties["inline_scripts"] = 0.0
-    elif 3 <= inline <= 6:
-        penalties["inline_scripts"] = -1.0  # -2/2 = -1
-    elif 6 < inline <= 10:
-        penalties["inline_scripts"] = -2.0  # -3/2 = -1.5, rounded to -2
-    else:  # 11+
-        penalties["inline_scripts"] = -3.0  # -5/2 = -2.5, rounded to -3
+    else:
+        inline_ratio = features.num_inline_scripts / total_scripts
+        if inline_ratio < 0.40:  # Less than 40% inline scripts
+            penalties["inline_scripts"] = 0.0
+        elif inline_ratio < 0.70:  # 40-70% inline scripts
+            penalties["inline_scripts"] = -0.5
+        else:  # 70%+ inline scripts
+            penalties["inline_scripts"] = -1.0
     
-    # (9) fingerprinting_flag penalty
+    # (9) fingerprinting_flag penalty (reduced)
     if features.fingerprinting_flag == 1:
-        penalties["fingerprinting"] = -4.0  # -8/2 = -4
+        penalties["fingerprinting"] = -2.0
     else:
         penalties["fingerprinting"] = 0.0
     
-    # (10) tracker_script_ratio penalty
+    # (10) tracker_script_ratio penalty (gentler)
     ratio = features.tracker_script_ratio
-    if 0.00 <= ratio <= 0.05:
+    if ratio <= 0.10:  # 10% or less tracker scripts
         penalties["tracker_script_ratio"] = 0.0
-    elif 0.05 < ratio <= 0.15:
-        penalties["tracker_script_ratio"] = -1.0  # -2/2 = -1
-    elif 0.15 < ratio <= 0.30:
-        penalties["tracker_script_ratio"] = -2.0  # -4/2 = -2
-    else:  # 0.30+
-        penalties["tracker_script_ratio"] = -3.0  # -6/2 = -3
+    elif ratio <= 0.25:  # 10-25% tracker scripts
+        penalties["tracker_script_ratio"] = -0.5
+    elif ratio <= 0.50:  # 25-50% tracker scripts
+        penalties["tracker_script_ratio"] = -1.0
+    else:  # 50%+ tracker scripts
+        penalties["tracker_script_ratio"] = -1.5
     
-    # Calculate total penalty and apply cap (also reduced by half)
+    # Calculate total penalty and apply gentler cap
     total_penalty = sum(penalties.values())
-    capped_penalty = max(total_penalty, -20.0)  # Cap at -20
+    capped_penalty = max(total_penalty, -10.0)  # Cap at -10 (much gentler)
     
     # Calculate final score
     final_score = ml_score + capped_penalty

@@ -97,7 +97,7 @@ class TrackerRadarParser:
             # Get base fingerprinting score
             base_fingerprinting = data.get('fingerprinting', 0)
             
-            # Create category-based tracking score
+            # Create category-based tracking score with very aggressive weighting
             categories = data.get('categories', [])
             tracking_categories = [
                 'Ad Motivated Tracking', 'Advertising', 'Analytics', 
@@ -105,24 +105,46 @@ class TrackerRadarParser:
                 'Cross-site Tracking', 'Fingerprinting'
             ]
             
-            # Count how many tracking categories this domain has
+            # Count tracking categories with very aggressive weighting
             tracking_category_count = sum(1 for cat in categories if cat in tracking_categories)
-            category_tracking_score = min(3, tracking_category_count)  # Cap at 3
             
-            # Combine fingerprinting with category-based score
-            # Use max to ensure domains with tracking categories get appropriate scores
+            # Additional aggressive categories
+            aggressive_categories = ['Social - Share', 'Embedded Content']
+            aggressive_count = sum(1 for cat in categories if cat in aggressive_categories)
+            
+            # VERY AGGRESSIVE scoring for multi-category tracking domains
+            if tracking_category_count >= 4:  # Domains with 4+ tracking categories
+                category_tracking_score = min(3, 2.5 + (tracking_category_count * 0.3) + (aggressive_count * 0.5))
+            elif tracking_category_count >= 2:  # Domains with 2-3 tracking categories  
+                category_tracking_score = min(3, 2.0 + (tracking_category_count * 0.4) + (aggressive_count * 0.4))
+            else:  # Single or no tracking categories
+                category_tracking_score = min(3, (tracking_category_count * 1.0) + (aggressive_count * 1.5))
+            
+            # Use maximum of base fingerprinting and enhanced category score
             enhanced_fingerprinting = max(base_fingerprinting, category_tracking_score)
             
-            # Reduce num_resources importance by 50% through feature scaling
+            # Reduce num_resources importance by 70% (even more aggressive)
             raw_num_resources = len(data.get('resources', []))
-            scaled_num_resources = raw_num_resources * 0.5  # Reduce importance by 50%
+            scaled_num_resources = raw_num_resources * 0.3  # Reduce importance by 70%
+            
+            # Add domain reputation adjustment for known legitimate high-traffic sites
+            legitimate_domains = {
+                'wikipedia.org', 'archive.org', 'mozilla.org', 'github.com',
+                'stackoverflow.com', 'reddit.com', 'medium.com', 'twitter.com'
+            }
+            
+            # Reduce global_prevalence impact for legitimate sites
+            global_prevalence = data.get('prevalence', 0.0)
+            if domain_name in legitimate_domains:
+                # Cap prevalence for legitimate sites to reduce over-penalization
+                global_prevalence = min(global_prevalence, 0.0005)  # Even more aggressive capping
             
             # Extract basic features
             features = {
                 'domain': domain_name,
                 'fingerprinting': enhanced_fingerprinting,
                 'cookies_prevalence': data.get('cookies', 0.0),
-                'global_prevalence': data.get('prevalence', 0.0),
+                'global_prevalence': global_prevalence,
                 'num_sites': data.get('sites', 0),
                 'num_subdomains': len(data.get('subdomains', [])),
                 'num_cnames': len(data.get('cnames', [])),
