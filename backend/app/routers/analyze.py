@@ -7,15 +7,15 @@ from app.middleware import validate_extension_headers
 from app.routers.auth import verify_jwt_token
 from app.models import AnalyzeRequest, AnalyzeResponse, PrivacyFeatures
 from app.security.extension_auth import validate_extension_request
-from app.ml_scoring import get_ml_score_for_page
+from app.ml_scoring import get_ml_score_for_page, domain_scoring_service, domain_scoring_service
 import json
 import re
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Known tracker domains - matches the frontend list
-KNOWN_TRACKERS = {
+# Fallback known tracker domains for when ML service is not available
+FALLBACK_KNOWN_TRACKERS = {
     # Analytics trackers
     "google-analytics.com", "googletagmanager.com", "googleadservices.com", 
     "doubleclick.net", "facebook.com", "facebook.net", "fbcdn.net", 
@@ -35,11 +35,62 @@ KNOWN_TRACKERS = {
 }
 
 def is_known_tracker(domain: str) -> bool:
-    """Check if a domain is a known tracker."""
-    return domain.lower() in KNOWN_TRACKERS
+    """Check if a domain is a known tracker using TrackerRadar data with subdomain matching."""
+    domain_lower = domain.lower()
+    
+    # Helper function to check domain and its variations in TrackerRadar
+    def check_trackerradar(check_domain):
+        if not domain_scoring_service.is_loaded:
+            return False
+        return check_domain in domain_scoring_service.domain_features
+    
+    # Helper function to extract parent domain (e.g., 'metric-api.newrelic.com' -> 'newrelic.com')
+    def get_parent_domain(d):
+        parts = d.split('.')
+        if len(parts) >= 2:
+            return '.'.join(parts[-2:])  # Get last two parts (domain.tld)
+        return d
+    
+    # 1. Try exact match in TrackerRadar
+    if check_trackerradar(domain_lower):
+        return True
+    
+    # 2. Try without 'www.' prefix
+    if domain_lower.startswith('www.'):
+        base_domain = domain_lower[4:]
+        if check_trackerradar(base_domain):
+            return True
+    
+    # 3. Try adding 'www.' prefix
+    www_domain = f"www.{domain_lower}"
+    if check_trackerradar(www_domain):
+        return True
+    
+    # 4. Try parent domain (for subdomains like metric-api.newrelic.com -> newrelic.com)
+    parent_domain = get_parent_domain(domain_lower)
+    if parent_domain != domain_lower and check_trackerradar(parent_domain):
+        return True
+    
+    # 5. Try parent domain with www
+    parent_www = f"www.{parent_domain}"
+    if check_trackerradar(parent_www):
+        return True
+    
+    # 6. Fallback to hardcoded list with same matching logic
+    def check_fallback(check_domain):
+        return check_domain in FALLBACK_KNOWN_TRACKERS
+    
+    # Check exact, www variants, and parent domain in fallback list
+    if (check_fallback(domain_lower) or 
+        (domain_lower.startswith('www.') and check_fallback(domain_lower[4:])) or
+        check_fallback(www_domain) or
+        (parent_domain != domain_lower and check_fallback(parent_domain)) or
+        check_fallback(parent_www)):
+        return True
+    
+    return False
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
 
 def extract_domain_from_url(url: str) -> str:
     """Extract domain from URL safely."""
@@ -402,24 +453,27 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         if req.domain:
             if is_third_party_domain(req.domain, data.page_domain):
                 third_party_domains_for_response.add(req.domain)
-            if is_known_tracker(req.domain):
-                known_trackers_for_response.add(req.domain)
+                # Only check if tracker AFTER confirming it's third-party
+                if is_known_tracker(req.domain):
+                    known_trackers_for_response.add(req.domain)
     
     # Check scripts
     for script in data.scripts:
         if script.domain:
             if is_third_party_domain(script.domain, data.page_domain):
                 third_party_domains_for_response.add(script.domain)
-            if is_known_tracker(script.domain):
-                known_trackers_for_response.add(script.domain)
+                # Only check if tracker AFTER confirming it's third-party
+                if is_known_tracker(script.domain):
+                    known_trackers_for_response.add(script.domain)
     
     # Check cookies
     for cookie in data.raw_cookies:
         if cookie.domain:
             if is_third_party_domain(cookie.domain, data.page_domain):
                 third_party_domains_for_response.add(cookie.domain)
-            if is_known_tracker(cookie.domain):
-                known_trackers_for_response.add(cookie.domain)
+                # Only check if tracker AFTER confirming it's third-party
+                if is_known_tracker(cookie.domain):
+                    known_trackers_for_response.add(cookie.domain)
     
     # Add fallback message if no issues detected
     if not findings:
