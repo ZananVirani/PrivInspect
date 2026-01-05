@@ -577,16 +577,16 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     final_score = ml_score + capped_penalty
     final_score = max(0.0, min(100.0, final_score))  # Clamp 0-100
     
-    # Determine letter grade
-    if 90.0 <= final_score <= 100.0:
+    # Determine letter grade (shifted up for more realistic grading)
+    if 75.0 <= final_score <= 100.0:
         grade = "A"
-    elif 75.0 <= final_score < 90.0:
-        grade = "B"
     elif 60.0 <= final_score < 75.0:
-        grade = "C"
+        grade = "B"
     elif 40.0 <= final_score < 60.0:
+        grade = "C"
+    elif 25.0 <= final_score < 40.0:
         grade = "D"
-    else:  # 0-39
+    else:  # 0-24
         grade = "F"
     
     return {
