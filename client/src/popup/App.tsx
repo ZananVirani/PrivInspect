@@ -10,6 +10,9 @@ import {
   XCircle,
   AlertCircle,
   Info,
+  Eye,
+  Target,
+  AlertTriangle,
 } from "lucide-react";
 import { ApiService } from "../utils/apiService";
 
@@ -25,6 +28,25 @@ interface ExtensionStatus {
   extensionId: string;
   backgroundActive: boolean;
   permissionsGranted: boolean;
+}
+
+interface AnalysisResult {
+  privacy_score: number;
+  privacy_grade: string;
+  privacy_level: string;
+  findings: string[];
+  recommendations: string[];
+  third_party_domains: string[];
+  known_trackers: string[];
+  computed_features?: {
+    num_third_party_domains: number;
+    num_third_party_scripts: number;
+    num_third_party_cookies: number;
+    num_persistent_cookies: number;
+    tracker_script_ratio: number;
+    fingerprinting_flag: number;
+  };
+  score_breakdown?: any;
 }
 
 function App() {
@@ -43,6 +65,8 @@ function App() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   useEffect(() => {
     initializePopup();
@@ -152,12 +176,14 @@ function App() {
   const authenticateAndAnalyze = async () => {
     try {
       setLoading(true);
+      setAnalysisError(null);
 
       // Get or refresh JWT token
       const token = await getValidToken();
 
       if (!token) {
         console.error("Authentication failed");
+        setAnalysisError("Authentication failed");
         return;
       }
 
@@ -168,6 +194,7 @@ function App() {
       });
       if (!tab.id) {
         console.error("No active tab found");
+        setAnalysisError("No active tab found");
         return;
       }
 
@@ -177,6 +204,7 @@ function App() {
 
       if (!results) {
         console.error("Failed to collect page data");
+        setAnalysisError("Failed to collect page data");
         return;
       }
 
@@ -186,8 +214,10 @@ function App() {
         token
       );
       console.log("Analysis Result:", analysisResult);
+      setAnalysisResult(analysisResult);
     } catch (error) {
       console.error("Analysis failed:", error);
+      setAnalysisError("Analysis failed: " + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -295,6 +325,32 @@ function App() {
     }
   };
 
+  const getGradeColor = (grade: string) => {
+    switch (grade) {
+      case 'A': return 'text-green-600 bg-green-50';
+      case 'B': return 'text-blue-600 bg-blue-50';
+      case 'C': return 'text-yellow-600 bg-yellow-50';
+      case 'D': return 'text-orange-600 bg-orange-50';
+      case 'F': return 'text-red-600 bg-red-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  const getPrivacyLevelIcon = (level: string) => {
+    switch (level) {
+      case 'high': return <Shield className="w-4 h-4 text-green-600" />;
+      case 'medium': return <Eye className="w-4 h-4 text-yellow-600" />;
+      case 'low': return <AlertTriangle className="w-4 h-4 text-red-600" />;
+      default: return <Shield className="w-4 h-4 text-gray-600" />;
+    }
+  };
+
+  const getTopTrackingDomains = (knownTrackers: string[]) => {
+    // For now, return the first 5 known trackers
+    // TODO: In the future, this could be enhanced with severity scores from the backend
+    return knownTrackers.slice(0, 5);
+  };
+
   const requestPermissions = async () => {
     const requiredPermissions = [
       "activeTab",
@@ -338,9 +394,9 @@ function App() {
   };
 
   return (
-    <div className="w-96 min-h-[500px] max-w-96 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white custom-scrollbar">
+    <div className="w-96 h-[600px] max-w-96 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white overflow-hidden">
       {/* Main Content */}
-      <div className="bg-white text-gray-800 p-5 flex-1 min-h-[400px]">
+      <div className="bg-white text-gray-800 p-5 h-full overflow-y-auto custom-scrollbar">
         {/* Hello World Section */}
         <div className="text-center mb-6">
           <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 animate-pulse flex items-center justify-center gap-3">
@@ -351,6 +407,156 @@ function App() {
             ML-Powered Privacy Inspector
           </div>
         </div>
+
+        {/* Privacy Score Section - Only show if we have analysis results */}
+        {analysisResult && (
+          <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+            <h3 className="text-sm font-semibold text-green-700 mb-3 flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              Privacy Analysis Results
+            </h3>
+            
+            {/* Score and Grade */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-600">
+                  {analysisResult.privacy_score}/100
+                </div>
+                <div className="text-xs text-gray-500">Privacy Score</div>
+              </div>
+              <div className={`px-4 py-2 rounded-full text-lg font-bold ${getGradeColor(analysisResult.privacy_grade)}`}>
+                {analysisResult.privacy_grade}
+              </div>
+              <div className="flex items-center gap-1">
+                {getPrivacyLevelIcon(analysisResult.privacy_level)}
+                <span className="text-sm font-medium capitalize">
+                  {analysisResult.privacy_level} Privacy
+                </span>
+              </div>
+            </div>
+
+            {/* Key Metrics */}
+            {analysisResult.computed_features && (
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="bg-white p-2 rounded border">
+                  <div className="text-xs text-gray-600">Third-Party Domains</div>
+                  <div className="text-lg font-bold text-blue-600">
+                    {analysisResult.computed_features.num_third_party_domains}
+                  </div>
+                </div>
+                <div className="bg-white p-2 rounded border">
+                  <div className="text-xs text-gray-600">Persistent Cookies</div>
+                  <div className="text-lg font-bold text-orange-600">
+                    {analysisResult.computed_features.num_persistent_cookies}
+                  </div>
+                </div>
+                <div className="bg-white p-2 rounded border">
+                  <div className="text-xs text-gray-600">Known Trackers</div>
+                  <div className="text-lg font-bold text-red-600">
+                    {analysisResult.known_trackers.length}
+                  </div>
+                </div>
+                <div className="bg-white p-2 rounded border">
+                  <div className="text-xs text-gray-600">Tracker Ratio</div>
+                  <div className="text-lg font-bold text-purple-600">
+                    {analysisResult.computed_features.num_third_party_domains > 0 
+                      ? Math.round((analysisResult.known_trackers.length / analysisResult.computed_features.num_third_party_domains) * 100)
+                      : 0}%
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Top Tracking Domains - Only show if we have trackers */}
+        {analysisResult && analysisResult.known_trackers.length > 0 && (
+          <div className="mb-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200">
+            <h3 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Top Tracking Domains ({analysisResult.known_trackers.length})
+            </h3>
+            <div className="space-y-2">
+              {getTopTrackingDomains(analysisResult.known_trackers).map((domain, index) => (
+                <div key={domain} className="flex items-center gap-2 p-2 bg-white rounded border">
+                  <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-bold text-red-600">{index + 1}</span>
+                  </div>
+                  <div className="flex-1 text-sm font-mono text-gray-800 truncate">
+                    {domain}
+                  </div>
+                  <Eye className="w-4 h-4 text-red-500" />
+                </div>
+              ))}
+              {analysisResult.known_trackers.length > 5 && (
+                <div className="text-xs text-center text-gray-500 italic">
+                  +{analysisResult.known_trackers.length - 5} more tracking domains detected
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Findings and Recommendations */}
+        {analysisResult && (analysisResult.findings.length > 0 || analysisResult.recommendations.length > 0) && (
+          <div className="mb-4 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
+            <h3 className="text-sm font-semibold text-yellow-700 mb-3 flex items-center gap-2">
+              <Info className="w-4 h-4" />
+              Privacy Insights
+            </h3>
+            
+            {/* Findings */}
+            {analysisResult.findings.length > 0 && (
+              <div className="mb-3">
+                <h4 className="text-xs font-semibold text-orange-700 mb-2">Issues Found:</h4>
+                <div className="space-y-1 max-h-24 overflow-y-auto">
+                  {analysisResult.findings.slice(0, 3).map((finding, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <AlertCircle className="w-3 h-3 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-xs text-gray-700">{finding}</span>
+                    </div>
+                  ))}
+                  {analysisResult.findings.length > 3 && (
+                    <div className="text-xs text-center text-gray-500 italic">
+                      +{analysisResult.findings.length - 3} more issues
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {analysisResult.recommendations.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-blue-700 mb-2">Recommendations:</h4>
+                <div className="space-y-1 max-h-24 overflow-y-auto">
+                  {analysisResult.recommendations.slice(0, 3).map((rec, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <CheckCircle className="w-3 h-3 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-xs text-gray-700">{rec}</span>
+                    </div>
+                  ))}
+                  {analysisResult.recommendations.length > 3 && (
+                    <div className="text-xs text-center text-gray-500 italic">
+                      +{analysisResult.recommendations.length - 3} more recommendations
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Analysis Error */}
+        {analysisError && (
+          <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
+            <div className="flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-red-500" />
+              <span className="text-sm font-medium text-red-700">Analysis Failed</span>
+            </div>
+            <p className="text-xs text-red-600 mt-1">{analysisError}</p>
+          </div>
+        )}
 
         {/* Extension Status */}
         <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
@@ -534,12 +740,18 @@ function App() {
         {/* Action Buttons */}
         <div className="mb-4">
           <button
-            onClick={async () => initializePopup()}
+            onClick={async () => {
+              await initializePopup();
+              // Trigger analysis if extension is ready
+              if (extensionStatus.backgroundActive && extensionStatus.permissionsGranted) {
+                await authenticateAndAnalyze();
+              }
+            }}
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 text-xs font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-            Refresh Info
+            {loading ? "Analyzing..." : "Analyze Privacy"}
           </button>
         </div>
 

@@ -187,7 +187,7 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Process all data sources for comprehensive domain and tracker analysis
     all_domains = set()
     third_party_domains = set()
-    tracker_domains = set()
+    third_party_tracker_domains = set()  # Only third-party trackers
     third_party_request_count = 0
     
     # Process network requests
@@ -198,9 +198,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             if is_third_party_domain(req.domain, page_domain):
                 third_party_domains.add(req.domain)
                 third_party_request_count += 1
-            # Backend computes tracker status
-            if is_known_tracker(req.domain):
-                tracker_domains.add(req.domain)
+                # Only add to tracker domains if it's BOTH third-party AND tracker
+                if is_known_tracker(req.domain):
+                    third_party_tracker_domains.add(req.domain)
     
     # Process script domains
     for script in data.scripts:
@@ -208,8 +208,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             all_domains.add(script.domain)
             if is_third_party_domain(script.domain, page_domain):
                 third_party_domains.add(script.domain)
-            if is_known_tracker(script.domain):
-                tracker_domains.add(script.domain)
+                # Only add to tracker domains if it's BOTH third-party AND tracker
+                if is_known_tracker(script.domain):
+                    third_party_tracker_domains.add(script.domain)
     
     # Process cookie domains
     for cookie in data.raw_cookies:
@@ -217,8 +218,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             all_domains.add(cookie.domain)
             if is_third_party_domain(cookie.domain, page_domain):
                 third_party_domains.add(cookie.domain)
-            if is_known_tracker(cookie.domain):
-                tracker_domains.add(cookie.domain)
+                # Only add to tracker domains if it's BOTH third-party AND tracker
+                if is_known_tracker(cookie.domain):
+                    third_party_tracker_domains.add(cookie.domain)
     
     # Feature 1: Number of unique third-party domains (across ALL sources: scripts, cookies, requests)
     features.num_third_party_domains = len(third_party_domains)
@@ -246,8 +248,8 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
         third_party_request_count / total_requests if total_requests > 0 else 0.0
     )
     
-    # Feature 5: Number of known tracker domains
-    features.num_known_tracker_domains = len(tracker_domains)
+    # Feature 5: Number of known tracker domains (only third-party trackers)
+    features.num_known_tracker_domains = len(third_party_tracker_domains)
     
     # Feature 6: Number of persistent cookies (non-session cookies)
     persistent_cookies = 0
@@ -287,14 +289,14 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
         )
     features.fingerprinting_flag = 1 if has_fingerprinting else 0
     
-    # Feature 10: Tracker script ratio
-    tracker_scripts = 0
+    # Feature 10: Tracker script ratio (third-party tracker scripts / third-party scripts)
+    third_party_tracker_scripts = 0
     for script in data.scripts:
-        if script.domain and is_known_tracker(script.domain):
-            tracker_scripts += 1
+        if script.domain and is_third_party_domain(script.domain, page_domain) and is_known_tracker(script.domain):
+            third_party_tracker_scripts += 1
     
     features.tracker_script_ratio = (
-        tracker_scripts / third_party_scripts if third_party_scripts > 0 else 0.0
+        third_party_tracker_scripts / third_party_scripts if third_party_scripts > 0 else 0.0
     )
     
     return features
@@ -436,13 +438,13 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
             findings.append(f"Some tracking scripts detected ({ratio:.1%} of scripts are trackers)")
             recommendations.append("Consider using script blockers")
     
-    # Determine privacy level based on final score
-    if score_result["score"] >= 90:
-        privacy_level = "high"
-    elif score_result["score"] >= 75:
-        privacy_level = "medium"
+    # Determine privacy level based on final score (aligned with letter grades)
+    if score_result["score"] >= 75:
+        privacy_level = "high"      # Matches A grade (75-100)
+    elif score_result["score"] >= 60:
+        privacy_level = "medium"    # Matches B grade (60-75)
     else:
-        privacy_level = "low"
+        privacy_level = "low"       # Matches C, D, F grades (<60)
     
     # Extract unique third-party domains and trackers for response (from ALL sources)
     third_party_domains_for_response = set()
