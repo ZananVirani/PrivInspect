@@ -555,7 +555,7 @@ function App() {
           </p>
         </div>
       </div>
-      
+
       {/* Disclaimer Popup Overlay */}
       {showDisclaimer && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -574,23 +574,31 @@ function App() {
                   <XCircle className="w-4 h-4" />
                 </button>
               </div>
-              
+
               {/* Content */}
               <div className="space-y-2 text-xs text-gray-600 leading-relaxed">
                 <p>
-                  <strong className="text-gray-800">ML Predictions:</strong> Uses AI to analyze privacy features. Predictions are estimates, not definitive assessments.
+                  <strong className="text-gray-800">ML Predictions:</strong>{" "}
+                  Uses AI to analyze privacy features. Predictions are
+                  estimates, not definitive assessments.
                 </p>
-                
+
                 <p>
-                  <strong className="text-gray-800">Tracking Detection:</strong> Based on DuckDuckGo's Tracker Radar database, which may not include all tracking services.
+                  <strong className="text-gray-800">Tracking Detection:</strong>{" "}
+                  Based on DuckDuckGo's Tracker Radar database, which may not
+                  include all tracking services.
                 </p>
-                
+
                 <p>
-                  <strong className="text-gray-800">Score Accuracy:</strong> Calculated using heuristic methods and may not reflect actual website privacy practices.
+                  <strong className="text-gray-800">Score Accuracy:</strong>{" "}
+                  Calculated using heuristic methods and may not reflect actual
+                  website privacy practices.
                 </p>
-                
+
                 <p>
-                  <strong className="text-gray-800">Not Legal Advice:</strong> For informational purposes only. Always review website privacy policies for complete information.
+                  <strong className="text-gray-800">Not Legal Advice:</strong>{" "}
+                  For informational purposes only. Always review website privacy
+                  policies for complete information.
                 </p>
               </div>
             </div>
