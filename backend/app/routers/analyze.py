@@ -187,7 +187,6 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Process all data sources for comprehensive domain and tracker analysis
     all_domains = set()
     third_party_domains = set()
-    third_party_tracker_domains = set()  # Only third-party trackers
     third_party_request_count = 0
     
     # Process network requests
@@ -198,9 +197,6 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             if is_third_party_domain(req.domain, page_domain):
                 third_party_domains.add(req.domain)
                 third_party_request_count += 1
-                # Only add to tracker domains if it's BOTH third-party AND tracker
-                if is_known_tracker(req.domain):
-                    third_party_tracker_domains.add(req.domain)
     
     # Process script domains
     for script in data.scripts:
@@ -208,9 +204,6 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             all_domains.add(script.domain)
             if is_third_party_domain(script.domain, page_domain):
                 third_party_domains.add(script.domain)
-                # Only add to tracker domains if it's BOTH third-party AND tracker
-                if is_known_tracker(script.domain):
-                    third_party_tracker_domains.add(script.domain)
     
     # Process cookie domains
     for cookie in data.raw_cookies:
@@ -218,38 +211,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             all_domains.add(cookie.domain)
             if is_third_party_domain(cookie.domain, page_domain):
                 third_party_domains.add(cookie.domain)
-                # Only add to tracker domains if it's BOTH third-party AND tracker
-                if is_known_tracker(cookie.domain):
-                    third_party_tracker_domains.add(cookie.domain)
     
     # Feature 1: Number of unique third-party domains (across ALL sources: scripts, cookies, requests)
     features.num_third_party_domains = len(third_party_domains)
-    
-    # Feature 2: Number of third-party scripts - backend computes third-party status
-    third_party_scripts = 0
-    for script in data.scripts:
-        if script.domain and is_third_party_domain(script.domain, page_domain):
-            third_party_scripts += 1
-    features.num_third_party_scripts = third_party_scripts
-    
-    # Feature 3: Number of third-party cookies - backend computes third-party status
-    third_party_cookies = 0
-    for cookie in data.raw_cookies:
-        if is_third_party_domain(cookie.domain, page_domain):
-            third_party_cookies += 1
-    features.num_third_party_cookies = third_party_cookies
-    
-    # Feature 4a: Number of third-party requests
-    features.num_third_party_requests = third_party_request_count
-    
-    # Feature 4b: Fraction of requests that are third-party
-    total_requests = len(data.network_requests)
-    features.fraction_third_party_requests = (
-        third_party_request_count / total_requests if total_requests > 0 else 0.0
-    )
-    
-    # Feature 5: Number of known tracker domains (only third-party trackers)
-    features.num_known_tracker_domains = len(third_party_tracker_domains)
     
     # Feature 6: Number of persistent cookies (non-session cookies)
     persistent_cookies = 0
@@ -291,12 +255,15 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     
     # Feature 10: Tracker script ratio (third-party tracker scripts / third-party scripts)
     third_party_tracker_scripts = 0
+    total_third_party_scripts = 0
     for script in data.scripts:
-        if script.domain and is_third_party_domain(script.domain, page_domain) and is_known_tracker(script.domain):
-            third_party_tracker_scripts += 1
+        if script.domain and is_third_party_domain(script.domain, page_domain):
+            total_third_party_scripts += 1
+            if is_known_tracker(script.domain):
+                third_party_tracker_scripts += 1
     
     features.tracker_script_ratio = (
-        third_party_tracker_scripts / third_party_scripts if third_party_scripts > 0 else 0.0
+        third_party_tracker_scripts / total_third_party_scripts if total_third_party_scripts > 0 else 0.0
     )
     
     return features
@@ -311,11 +278,6 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     # Log feature extraction for validation
     logger.info(f"Privacy Feature Extraction for {data.page_url}:")
     logger.info(f"  Feature 1 - Third-party domains: {features.num_third_party_domains}")
-    logger.info(f"  Feature 2 - Third-party scripts: {features.num_third_party_scripts}")
-    logger.info(f"  Feature 3 - Third-party cookies: {features.num_third_party_cookies}")
-    logger.info(f"  Feature 4a - Third-party requests: {features.num_third_party_requests}")
-    logger.info(f"  Feature 4b - Third-party request fraction: {features.fraction_third_party_requests:.3f}")
-    logger.info(f"  Feature 5 - Known tracker domains: {features.num_known_tracker_domains}")
     logger.info(f"  Feature 6 - Persistent cookies: {features.num_persistent_cookies}")
     logger.info(f"  Feature 7 - Has analytics globals: {features.has_analytics_global}")
     logger.info(f"  Feature 8 - Inline scripts: {features.num_inline_scripts}")
@@ -345,54 +307,6 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         else:
             findings.append(f"Some third-party domains present ({domains} domains)")
             recommendations.append("Monitor third-party content for privacy")
-    
-    if penalties["third_party_scripts"] < 0:
-        scripts = features.num_third_party_scripts
-        if scripts >= 16:
-            findings.append(f"Very high number of third-party scripts ({scripts} scripts)")
-            recommendations.append("Use script blockers to reduce tracking exposure")
-        elif scripts >= 7:
-            findings.append(f"High number of third-party scripts ({scripts} scripts)")
-            recommendations.append("Review and limit third-party script loading")
-        else:
-            findings.append(f"Moderate third-party script usage ({scripts} scripts)")
-            recommendations.append("Monitor script sources for privacy compliance")
-    
-    if penalties["third_party_cookies"] < 0:
-        cookies = features.num_third_party_cookies
-        if cookies >= 7:
-            findings.append(f"Excessive third-party cookies ({cookies} cookies)")
-            recommendations.append("Clear cookies regularly and block third-party cookies")
-        elif cookies >= 3:
-            findings.append(f"Multiple third-party cookies detected ({cookies} cookies)")
-            recommendations.append("Consider blocking third-party cookies in browser settings")
-        else:
-            findings.append(f"Some third-party cookies present ({cookies} cookies)")
-            recommendations.append("Review cookie settings for privacy")
-    
-    if penalties["third_party_requests"] < 0:
-        fraction = features.fraction_third_party_requests
-        if fraction > 0.60:
-            findings.append(f"Very high third-party request ratio ({fraction:.1%} of requests)")
-            recommendations.append("Use comprehensive ad and tracker blocking")
-        elif fraction > 0.30:
-            findings.append(f"High third-party request ratio ({fraction:.1%} of requests)")
-            recommendations.append("Enable strict privacy protection in browser")
-        else:
-            findings.append(f"Moderate third-party request activity ({fraction:.1%} of requests)")
-            recommendations.append("Monitor network requests for privacy")
-    
-    if penalties["tracker_domains"] < 0:
-        trackers = features.num_known_tracker_domains
-        if trackers >= 3:
-            findings.append(f"Multiple known tracking services detected ({trackers} trackers)")
-            recommendations.append("Use comprehensive tracker blocking immediately")
-        elif trackers == 2:
-            findings.append(f"Known tracking services detected ({trackers} trackers)")
-            recommendations.append("Enable enhanced tracking protection")
-        else:
-            findings.append(f"Known tracking service detected ({trackers} tracker)")
-            recommendations.append("Consider using privacy-focused browser extensions")
     
     if penalties["persistent_cookies"] < 0:
         persistent = features.num_persistent_cookies
@@ -531,62 +445,20 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     else:  # 80%+ third-party
         penalties["third_party_domains"] = -1.5
     
-    # (2) third_party_scripts penalty (gentler thresholds)
-    scripts = features.num_third_party_scripts
-    if scripts <= 3:
-        penalties["third_party_scripts"] = 0.0
-    elif scripts <= 8:
-        penalties["third_party_scripts"] = -0.5
-    elif scripts <= 15:
-        penalties["third_party_scripts"] = -1.0
-    else:  # 16+
-        penalties["third_party_scripts"] = -1.5
+    # Removed third-party cookies penalty calculation
     
-    # (3) third_party_cookies penalty (gentler)
-    cookies = features.num_third_party_cookies
-    if cookies <= 1:
-        penalties["third_party_cookies"] = 0.0
-    elif cookies <= 4:
-        penalties["third_party_cookies"] = -0.5
-    elif cookies <= 8:
-        penalties["third_party_cookies"] = -1.0
-    else:  # 9+
-        penalties["third_party_cookies"] = -1.5
+    # Removed tracker domains penalty calculation
     
-    # (4) fraction_third_party_requests penalty (gentler)
-    fraction = features.fraction_third_party_requests
-    if fraction < 0.20:  # Less than 20% third-party requests
-        penalties["third_party_requests"] = 0.0
-    elif fraction <= 0.50:  # 20-50% third-party requests
-        penalties["third_party_requests"] = -0.5
-    elif fraction <= 0.75:  # 50-75% third-party requests
-        penalties["third_party_requests"] = -1.0
-    else:  # > 75% third-party requests
-        penalties["third_party_requests"] = -1.5
-    
-    # (5) known_tracker_domains penalty (much gentler)
-    trackers = features.num_known_tracker_domains
-    if trackers == 0:
-        penalties["tracker_domains"] = 0.0
-    elif trackers == 1:
-        penalties["tracker_domains"] = -1.0
-    elif trackers <= 3:
-        penalties["tracker_domains"] = -1.5
-    else:  # 4+
-        penalties["tracker_domains"] = -2.5
-    
-    # (6) persistent_cookies penalty (proportion-based)
-    total_cookies = features.num_third_party_cookies + features.num_persistent_cookies
-    if total_cookies == 0:
+    # (6) persistent_cookies penalty (simplified without third-party cookies dependency)
+    persistent = features.num_persistent_cookies
+    if persistent == 0:
         penalties["persistent_cookies"] = 0.0
-    else:
-        persistent_ratio = features.num_persistent_cookies / total_cookies
-        if persistent_ratio < 0.30:  # Less than 30% persistent
-            penalties["persistent_cookies"] = 0.0
-        elif persistent_ratio < 0.60:  # 30-60% persistent
-            penalties["persistent_cookies"] = -0.5
-        else:  # 60%+ persistent
-            penalties["persistent_cookies"] = -1.0
+    elif persistent <= 2:
+        penalties["persistent_cookies"] = -0.5
+    elif persistent <= 5:
+        penalties["persistent_cookies"] = -1.0
+    else:  # 6+
+        penalties["persistent_cookies"] = -1.5
     
     # (7) has_analytics_global penalty (reduced)
     if features.has_analytics_global == 1:
@@ -595,18 +467,13 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
         penalties["analytics_global"] = 0.0
     
     # (8) inline_scripts penalty (proportion-based and gentler)
-    # Calculate total scripts (third-party + inline)
-    total_scripts = features.num_third_party_scripts + features.num_inline_scripts
-    if total_scripts == 0:
+    # Since we removed third-party scripts count, just check inline scripts count directly
+    if features.num_inline_scripts == 0:
         penalties["inline_scripts"] = 0.0
-    else:
-        inline_ratio = features.num_inline_scripts / total_scripts
-        if inline_ratio < 0.40:  # Less than 40% inline scripts
-            penalties["inline_scripts"] = 0.0
-        elif inline_ratio < 0.70:  # 40-70% inline scripts
-            penalties["inline_scripts"] = -0.5
-        else:  # 70%+ inline scripts
-            penalties["inline_scripts"] = -1.0
+    elif features.num_inline_scripts <= 3:
+        penalties["inline_scripts"] = -0.5
+    else:  # 4+ inline scripts
+        penalties["inline_scripts"] = -1.0
     
     # (9) fingerprinting_flag penalty (reduced)
     if features.fingerprinting_flag == 1:
@@ -665,11 +532,9 @@ def calculate_privacy_score(features: PrivacyFeatures) -> int:
     
     # Deduct points for privacy-reducing features
     score -= min(features.num_third_party_domains * 2, 30)  # Max -30 for third parties
-    score -= min(features.num_known_tracker_domains * 5, 25)  # Max -25 for trackers
     score -= features.has_analytics_global * 10  # -10 for analytics
     score -= features.fingerprinting_flag * 15  # -15 for fingerprinting
     score -= min(features.num_persistent_cookies * 2, 20)  # Max -20 for persistent cookies
-    score -= min(features.fraction_third_party_requests * 30, 15)  # Max -15 for third-party requests
     
     return max(score, 0)
 
@@ -712,7 +577,6 @@ async def analyze_website_privacy(
         if analyze_data.privacy_features:
             logger.info("Frontend provided pre-computed features for validation:")
             logger.info(f"  Frontend computed - Third-party domains: {analyze_data.privacy_features.num_third_party_domains}")
-            logger.info(f"  Frontend computed - Known trackers: {analyze_data.privacy_features.num_known_tracker_domains}")
         
         # Perform comprehensive analysis
         analysis_result = await analyze_privacy_data(analyze_data)
