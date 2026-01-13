@@ -34,6 +34,55 @@ FALLBACK_KNOWN_TRACKERS = {
     "cdnjs.cloudflare.com", "ajax.googleapis.com", "maxcdn.bootstrapcdn.com"
 }
 
+# Tracker severity ranking (higher number = more severe)
+TRACKER_SEVERITY_SCORES = {
+    # Most severe - Major analytics and advertising trackers
+    "google-analytics.com": 10, "googletagmanager.com": 10, "doubleclick.net": 10,
+    "facebook.com": 9, "connect.facebook.net": 9, "facebook.net": 9,
+    "googlesyndication.com": 9, "googleadservices.com": 9,
+    
+    # High severity - Major ad networks and social trackers
+    "amazon-adsystem.com": 8, "adsystem.amazon.com": 8,
+    "twitter.com": 7, "linkedin.com": 7, "instagram.com": 7,
+    
+    # Medium-high severity - Analytics and behavior tracking
+    "hotjar.com": 6, "mixpanel.com": 6, "segment.com": 6, "amplitude.com": 6,
+    "fullstory.com": 6,
+    
+    # Medium severity - Performance and other trackers
+    "newrelic.com": 5, "pingdom.net": 5, "quantserve.com": 5,
+    "scorecardresearch.com": 5, "comscore.com": 5,
+    
+    # Lower severity - Search engines and others
+    "bing.com": 4, "yahoo.com": 4, "yandex.ru": 4, "baidu.com": 4,
+    "t.co": 3, "fbcdn.net": 3,
+    
+    # Lowest severity - CDNs with potential tracking
+    "cdnjs.cloudflare.com": 2, "ajax.googleapis.com": 2, "maxcdn.bootstrapcdn.com": 2
+}
+
+def get_tracker_severity_score(domain: str) -> int:
+    """Get severity score for a tracking domain (higher = more severe)."""
+    domain_lower = domain.lower()
+    
+    # Check exact match first
+    if domain_lower in TRACKER_SEVERITY_SCORES:
+        return TRACKER_SEVERITY_SCORES[domain_lower]
+    
+    # Check parent domain (for subdomains)
+    def get_parent_domain(d):
+        parts = d.split('.')
+        if len(parts) >= 2:
+            return '.'.join(parts[-2:])
+        return d
+    
+    parent = get_parent_domain(domain_lower)
+    if parent in TRACKER_SEVERITY_SCORES:
+        return TRACKER_SEVERITY_SCORES[parent]
+    
+    # Default severity for unknown trackers
+    return 1
+
 def is_known_tracker(domain: str) -> bool:
     """Check if a domain is a known tracker using TrackerRadar data with subdomain matching."""
     domain_lower = domain.lower()
@@ -425,6 +474,13 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         findings.append("No significant privacy issues detected")
         recommendations.append("Website demonstrates good privacy practices")
     
+    # Sort known trackers by severity (most severe first)
+    sorted_known_trackers = sorted(
+        known_trackers_for_response, 
+        key=lambda domain: get_tracker_severity_score(domain),
+        reverse=True  # Most severe first
+    )
+    
     return {
         "privacy_score": privacy_score,
         "cookies_analyzed": len(data.raw_cookies),
@@ -435,7 +491,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         "findings": findings,
         "recommendations": recommendations,
         "third_party_domains": list(third_party_domains_for_response),
-        "known_trackers": list(known_trackers_for_response),
+        "known_trackers": sorted_known_trackers,
         "privacy_level": privacy_level
     }
 

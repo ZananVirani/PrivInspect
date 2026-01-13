@@ -219,8 +219,7 @@ function App() {
   };
 
   const getTopTrackingDomains = (knownTrackers: string[]) => {
-    // For now, return the first 5 known trackers
-    // TODO: In the future, this could be enhanced with severity scores from the backend
+    // Backend now sorts trackers by severity, so just take the first 5 (most severe)
     return knownTrackers.slice(0, 5);
   };
 
