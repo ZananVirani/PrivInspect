@@ -187,6 +187,7 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Process all data sources for comprehensive domain and tracker analysis
     all_domains = set()
     third_party_domains = set()
+    tracking_domains = set()  # All tracking domains (both third-party and first-party)
     third_party_request_count = 0
     
     # Process network requests
@@ -197,6 +198,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             if is_third_party_domain(req.domain, page_domain):
                 third_party_domains.add(req.domain)
                 third_party_request_count += 1
+            # Track ALL tracker domains (third-party AND first-party)
+            if is_known_tracker(req.domain):
+                tracking_domains.add(req.domain)
     
     # Process script domains
     for script in data.scripts:
@@ -204,6 +208,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             all_domains.add(script.domain)
             if is_third_party_domain(script.domain, page_domain):
                 third_party_domains.add(script.domain)
+            # Track ALL tracker domains
+            if is_known_tracker(script.domain):
+                tracking_domains.add(script.domain)
     
     # Process cookie domains
     for cookie in data.raw_cookies:
@@ -211,9 +218,15 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
             all_domains.add(cookie.domain)
             if is_third_party_domain(cookie.domain, page_domain):
                 third_party_domains.add(cookie.domain)
+            # Track ALL tracker domains
+            if is_known_tracker(cookie.domain):
+                tracking_domains.add(cookie.domain)
     
     # Feature 1: Number of unique third-party domains (across ALL sources: scripts, cookies, requests)
     features.num_third_party_domains = len(third_party_domains)
+    
+    # Feature 1b: Number of tracking domains (both third-party AND first-party)
+    features.num_tracking_domains = len(tracking_domains)
     
     # Feature 6: Number of persistent cookies (non-session cookies)
     persistent_cookies = 0
@@ -278,6 +291,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     # Log feature extraction for validation
     logger.info(f"Privacy Feature Extraction for {data.page_url}:")
     logger.info(f"  Feature 1 - Third-party domains: {features.num_third_party_domains}")
+    logger.info(f"  Feature 1b - Tracking domains: {features.num_tracking_domains}")
     logger.info(f"  Feature 6 - Persistent cookies: {features.num_persistent_cookies}")
     logger.info(f"  Feature 7 - Has analytics globals: {features.has_analytics_global}")
     logger.info(f"  Feature 8 - Inline scripts: {features.num_inline_scripts}")
@@ -296,6 +310,21 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     penalties = score_result["breakdown"]["individual_penalties"]
     
     # Generate findings and recommendations based on which heuristics triggered penalties
+    if penalties.get("tracking_domains", 0) < 0:
+        trackers = features.num_tracking_domains
+        if trackers >= 11:
+            findings.append(f"Excessive tracking detected ({trackers} tracking domains)")
+            recommendations.append("Enable strict tracking protection and consider using a privacy-focused browser")
+        elif trackers >= 6:
+            findings.append(f"Heavy tracking detected ({trackers} tracking domains)")
+            recommendations.append("Enable enhanced tracking protection and block third-party trackers")
+        elif trackers >= 2:
+            findings.append(f"Multiple tracking domains detected ({trackers} trackers)")
+            recommendations.append("Consider enabling tracking protection in your browser")
+        else:
+            findings.append(f"Tracking domain detected ({trackers} tracker)")
+            recommendations.append("Monitor for tracking activity")
+    
     if penalties["third_party_domains"] < 0:
         domains = features.num_third_party_domains
         if domains >= 8:
@@ -433,17 +462,29 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     penalties = {}
     total_penalty = 0.0
     
-    # (1) third_party_domains penalty (proportion-based)
-    total_domains = features.num_third_party_domains + 1  # +1 to avoid division by zero (main domain)
-    third_party_ratio = features.num_third_party_domains / total_domains
-    if third_party_ratio < 0.30:  # Less than 30% third-party
+    # (1) third_party_domains penalty (gentler for non-tracking domains)
+    non_tracking_domains = max(0, features.num_third_party_domains - features.num_tracking_domains)
+    if non_tracking_domains == 0:
         penalties["third_party_domains"] = 0.0
-    elif third_party_ratio < 0.60:  # 30-60% third-party
+    elif non_tracking_domains <= 5:
         penalties["third_party_domains"] = -0.5
-    elif third_party_ratio < 0.80:  # 60-80% third-party
+    else:  # 6+ non-tracking third parties
         penalties["third_party_domains"] = -1.0
-    else:  # 80%+ third-party
-        penalties["third_party_domains"] = -1.5
+    
+    # (1b) tracking_domains penalty (much heavier)
+    trackers = features.num_tracking_domains
+    if trackers == 0:
+        penalties["tracking_domains"] = 0.0
+    elif trackers == 1:
+        penalties["tracking_domains"] = -3.0  # Significant penalty for even 1 tracker
+    elif trackers <= 3:
+        penalties["tracking_domains"] = -6.0
+    elif trackers <= 5:
+        penalties["tracking_domains"] = -9.0
+    elif trackers <= 10:
+        penalties["tracking_domains"] = -12.0
+    else:  # 11+ trackers - very severe
+        penalties["tracking_domains"] = -15.0
     
     # Removed third-party cookies penalty calculation
     
@@ -492,9 +533,20 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     else:  # 50%+ tracker scripts
         penalties["tracker_script_ratio"] = -1.5
     
-    # Calculate total penalty and apply gentler cap
+    # Calculate total penalty and apply dynamic cap based on tracking severity
     total_penalty = sum(penalties.values())
-    capped_penalty = max(total_penalty, -10.0)  # Cap at -10 (much gentler)
+    
+    # Dynamic penalty cap - more trackers = higher cap
+    if features.num_tracking_domains >= 10:
+        penalty_cap = -25.0  # Heavy tracking deserves severe penalty
+    elif features.num_tracking_domains >= 5:
+        penalty_cap = -18.0  # Moderate tracking
+    elif features.num_tracking_domains >= 1:
+        penalty_cap = -15.0  # Some tracking
+    else:
+        penalty_cap = -10.0  # No tracking - gentle cap
+        
+    capped_penalty = max(total_penalty, penalty_cap)
     
     # Calculate final score
     final_score = ml_score + capped_penalty
@@ -530,8 +582,24 @@ def calculate_privacy_score(features: PrivacyFeatures) -> int:
     """Calculate privacy score from 0-100 based on features."""
     score = 100
     
-    # Deduct points for privacy-reducing features
-    score -= min(features.num_third_party_domains * 2, 30)  # Max -30 for third parties
+    # Heavy penalty for tracking domains (this is the main privacy concern)
+    # Each tracking domain gets progressively more severe penalty
+    if features.num_tracking_domains > 0:
+        # Base penalty: 8 points per tracking domain
+        base_penalty = features.num_tracking_domains * 8
+        # Progressive penalty for many trackers (exponential growth)
+        if features.num_tracking_domains >= 10:
+            bonus_penalty = (features.num_tracking_domains - 9) * 5  # Extra 5 per tracker beyond 9
+        else:
+            bonus_penalty = 0
+        tracking_penalty = min(base_penalty + bonus_penalty, 60)  # Max -60 for tracking
+        score -= tracking_penalty
+    
+    # Moderate penalty for non-tracking third-party domains
+    non_tracking_domains = max(0, features.num_third_party_domains - features.num_tracking_domains)
+    score -= min(non_tracking_domains * 1, 15)  # Max -15 for non-tracking third parties
+    
+    # Other penalties
     score -= features.has_analytics_global * 10  # -10 for analytics
     score -= features.fingerprinting_flag * 15  # -15 for fingerprinting
     score -= min(features.num_persistent_cookies * 2, 20)  # Max -20 for persistent cookies
