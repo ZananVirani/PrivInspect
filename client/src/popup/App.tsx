@@ -414,15 +414,14 @@ function App() {
                   Issues Detected ({analysisResult.findings.length})
                 </h4>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {analysisResult.findings
-                    .map((finding, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <div className="w-1 h-1 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-xs text-gray-600 leading-relaxed">
-                          {finding}
-                        </span>
-                      </div>
-                    ))}
+                  {analysisResult.findings.map((finding, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <div className="w-1 h-1 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                      <span className="text-xs text-gray-600 leading-relaxed">
+                        {finding}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
