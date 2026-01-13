@@ -49,6 +49,7 @@ function App() {
     null
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   useEffect(() => {
     initializePopup();
@@ -537,8 +538,8 @@ function App() {
         <div className="text-center pt-4 border-t border-gray-200">
           <p className="text-xs text-blue-600 italic flex items-center justify-center">
             <button
-              className="flex items-center gap-1"
-              onClick={() => console.log("Disclaimer clicked")}
+              className="flex items-center gap-1 hover:text-blue-700 transition-colors"
+              onClick={() => setShowDisclaimer(true)}
             >
               <Info className="w-3 h-3" />
               Click here for disclaimer
@@ -554,6 +555,48 @@ function App() {
           </p>
         </div>
       </div>
+      
+      {/* Disclaimer Popup Overlay */}
+      {showDisclaimer && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full">
+            <div className="p-4">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-blue-600" />
+                  Disclaimer
+                </h3>
+                <button
+                  onClick={() => setShowDisclaimer(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="space-y-2 text-xs text-gray-600 leading-relaxed">
+                <p>
+                  <strong className="text-gray-800">ML Predictions:</strong> Uses AI to analyze privacy features. Predictions are estimates, not definitive assessments.
+                </p>
+                
+                <p>
+                  <strong className="text-gray-800">Tracking Detection:</strong> Based on DuckDuckGo's Tracker Radar database, which may not include all tracking services.
+                </p>
+                
+                <p>
+                  <strong className="text-gray-800">Score Accuracy:</strong> Calculated using heuristic methods and may not reflect actual website privacy practices.
+                </p>
+                
+                <p>
+                  <strong className="text-gray-800">Not Legal Advice:</strong> For informational purposes only. Always review website privacy policies for complete information.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
