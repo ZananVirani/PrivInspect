@@ -24,7 +24,6 @@ interface AnalysisResult {
   privacy_grade: string;
   privacy_level: string;
   findings: string[];
-  recommendations: string[];
   third_party_domains: string[];
   known_trackers: string[];
   computed_features?: {
@@ -38,7 +37,8 @@ interface AnalysisResult {
   score_breakdown?: any;
 }
 
-function App() {  const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>({
+function App() {
+  const [extensionStatus, setExtensionStatus] = useState<ExtensionStatus>({
     extensionId: "Loading...",
     backgroundActive: false,
     permissionsGranted: false,
@@ -164,8 +164,6 @@ function App() {  const [extensionStatus, setExtensionStatus] = useState<Extensi
       }
     });
   };
-
-
 
   const checkPermissions = async (): Promise<boolean> => {
     const requiredPermissions = [
@@ -408,71 +406,28 @@ function App() {  const [extensionStatus, setExtensionStatus] = useState<Extensi
                 </div>
               )}
             </div>
+            {/* Issues Detected - Simple list within analysis results */}
+            {analysisResult.findings.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <h4 className="text-xs font-semibold text-red-600 mb-2 flex items-center gap-2">
+                  <AlertTriangle className="w-3 h-3" />
+                  Issues Detected ({analysisResult.findings.length})
+                </h4>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {analysisResult.findings
+                    .map((finding, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <div className="w-1 h-1 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-xs text-gray-600 leading-relaxed">
+                          {finding}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Findings and Recommendations */}
-        {analysisResult &&
-          (analysisResult.findings.length > 0 ||
-            analysisResult.recommendations.length > 0) && (
-            <div className="mb-4 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
-              <h3 className="text-sm font-semibold text-yellow-700 mb-3 flex items-center gap-2">
-                <Info className="w-4 h-4" />
-                Privacy Insights
-              </h3>
-
-              {/* Findings */}
-              {analysisResult.findings.length > 0 && (
-                <div className="mb-3">
-                  <h4 className="text-xs font-semibold text-orange-700 mb-2">
-                    Issues Found:
-                  </h4>
-                  <div className="space-y-1 max-h-24 overflow-y-auto">
-                    {analysisResult.findings
-                      .slice(0, 3)
-                      .map((finding, index) => (
-                        <div key={index} className="flex items-start gap-2">
-                          <AlertCircle className="w-3 h-3 text-orange-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-xs text-gray-700">
-                            {finding}
-                          </span>
-                        </div>
-                      ))}
-                    {analysisResult.findings.length > 3 && (
-                      <div className="text-xs text-center text-gray-500 italic">
-                        +{analysisResult.findings.length - 3} more issues
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Recommendations */}
-              {analysisResult.recommendations.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-semibold text-blue-700 mb-2">
-                    Recommendations:
-                  </h4>
-                  <div className="space-y-1 max-h-24 overflow-y-auto">
-                    {analysisResult.recommendations
-                      .slice(0, 3)
-                      .map((rec, index) => (
-                        <div key={index} className="flex items-start gap-2">
-                          <CheckCircle className="w-3 h-3 text-blue-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-xs text-gray-700">{rec}</span>
-                        </div>
-                      ))}
-                    {analysisResult.recommendations.length > 3 && (
-                      <div className="text-xs text-center text-gray-500 italic">
-                        +{analysisResult.recommendations.length - 3} more
-                        recommendations
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
         {/* Analysis Error */}
         {analysisError && (
@@ -579,10 +534,6 @@ function App() {  const [extensionStatus, setExtensionStatus] = useState<Extensi
             </div>
           </div>
         </div>
-
-
-
-
 
         {/* Footer */}
         <div className="text-center pt-4 border-t border-gray-200">
