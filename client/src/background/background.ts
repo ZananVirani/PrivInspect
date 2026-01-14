@@ -1,6 +1,3 @@
-// Import hot reload for development
-import "../utils/hotReload";
-
 // Function to determine if a network request is privacy-relevant
 function isPrivacyRelevantRequest(
   details: chrome.webRequest.WebRequestBodyDetails

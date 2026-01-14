@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Privacy Inspector Demo",
   "version": "1.0",
-  "description": "Privacy analysis extension built with React and Vite",
+  "description": "Extension that analyzes webpages for domains that are known to be involved in tracking, providing an overall privacy score.",
 
   "action": {
     "default_popup": "src/popup/popup.html",
@@ -28,15 +28,7 @@
     }
   ],
 
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "cookies",
-    "storage",
-    "webRequest",
-    "webNavigation",
-    "tabs"
-  ],
+  "permissions": ["cookies", "storage", "webRequest", "tabs"],
 
   "host_permissions": ["<all_urls>"],
 

@@ -20,14 +20,12 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    hmr: {
-      port: 5174,
-    },
+    hmr: process.env.NODE_ENV !== 'production',
   },
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    sourcemap: true, // Enable sourcemaps for debugging
+    sourcemap: process.env.NODE_ENV !== 'production', // Enable unless production
   },
   resolve: {
     alias: {
