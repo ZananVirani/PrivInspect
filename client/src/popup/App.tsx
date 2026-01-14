@@ -231,10 +231,12 @@ function App() {
       if (granted) {
         // Update extension status after granting permissions
         const permissionsGranted = await checkPermissions();
+        const backgroundActive = extensionStatus.backgroundActive;
+
         setExtensionStatus((prev) => ({ ...prev, permissionsGranted }));
 
         // If permissions are now granted and background is active, authenticate
-        if (permissionsGranted && extensionStatus.backgroundActive) {
+        if (permissionsGranted && backgroundActive) {
           // Trigger authentication and analysis now that we have permissions
           await authenticateAndAnalyze();
         }
