@@ -1,6 +1,14 @@
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync } from "fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  readFileSync,
+  writeFileSync,
+} from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -15,29 +23,38 @@ try {
   if (existsSync(manifestSrc)) {
     copyFileSync(manifestSrc, manifestDest);
     console.log("✅ Manifest copied to dist folder");
-    
+
     // Fix manifest paths to point to compiled assets
-    const manifest = JSON.parse(readFileSync(manifestDest, 'utf8'));
+    const manifest = JSON.parse(readFileSync(manifestDest, "utf8"));
     const assetsDir = resolve(__dirname, "../dist/assets");
-    
+
     if (existsSync(assetsDir)) {
       const assetFiles = readdirSync(assetsDir);
-      
+
       // Find the background script file
-      const backgroundFile = assetFiles.find(file => file.startsWith('background.ts-') && file.endsWith('.js'));
+      const backgroundFile = assetFiles.find(
+        (file) => file.startsWith("background.ts-") && file.endsWith(".js")
+      );
       if (backgroundFile) {
         manifest.background.service_worker = `assets/${backgroundFile}`;
-        console.log(`✅ Updated background script path: assets/${backgroundFile}`);
+        console.log(
+          `✅ Updated background script path: assets/${backgroundFile}`
+        );
       }
-      
-      // Find the content script file  
-      const contentFile = assetFiles.find(file => file.startsWith('content.ts-') && file.endsWith('.js'));
+
+      // Find the content script file
+      const contentFile = assetFiles.find(
+        (file) => file.startsWith("content.ts-") && file.endsWith(".js")
+      );
       if (contentFile) {
         manifest.content_scripts[0].js = [`assets/${contentFile}`];
-        manifest.web_accessible_resources[0].resources = [`assets/${contentFile}`, "assets/*"];
+        manifest.web_accessible_resources[0].resources = [
+          `assets/${contentFile}`,
+          "assets/*",
+        ];
         console.log(`✅ Updated content script path: assets/${contentFile}`);
       }
-      
+
       // Write updated manifest
       writeFileSync(manifestDest, JSON.stringify(manifest, null, 2));
       console.log("✅ Manifest paths updated for production build");
