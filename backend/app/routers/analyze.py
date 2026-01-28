@@ -501,15 +501,10 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         findings.append("No significant privacy issues detected")
         recommendations.append("Website demonstrates good privacy practices")
     
-    # Sort known trackers by severity (most severe first)
-    sorted_known_trackers = sorted(
-        known_trackers_for_response, 
-        key=lambda domain: get_tracker_severity_score(domain),
-        reverse=True  # Most severe first
-    )
-    
-    # Get individual domain scores for tracking domains
+    # Get individual domain scores for tracking domains first (so we can sort by them)
     tracking_domains_with_scores = []
+    domain_score_lookup = {}
+    
     try:
         if data and domain_scoring_service.is_loaded:
             # Get detailed scoring for all domains
@@ -519,32 +514,35 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
             # Create lookup for domain scores
             domain_score_lookup = {ds.domain: ds.domain_safe_score for ds in scoring_result.domains}
             
-            # Add scores to tracking domains
-            for domain in sorted_known_trackers:
-                score = domain_score_lookup.get(domain, 95.0)  # Fallback to 95.0
-                logger.debug(f"Looking up ML score for domain '{domain}': {score}")
-                tracking_domains_with_scores.append({
-                    "domain": domain,
-                    "score": round(score, 1)
-                })
-            
-            logger.info(f"ML scoring successful. Created {len(tracking_domains_with_scores)} tracking domains with scores")
+            logger.info(f"ML scoring successful. Got scores for {len(domain_score_lookup)} domains")
         else:
-            # Fallback without scores
-            for domain in sorted_known_trackers:
-                tracking_domains_with_scores.append({
-                    "domain": domain,
-                    "score": 95.0
-                })
-            logger.info(f"ML scoring not available. Created {len(tracking_domains_with_scores)} tracking domains with fallback scores")
+            logger.info(f"ML scoring not available, will use fallback scores")
     except Exception as e:
         logger.warning(f"Failed to get domain scores: {e}")
-        # Fallback without scores
-        for domain in sorted_known_trackers:
-            tracking_domains_with_scores.append({
-                "domain": domain,
-                "score": 95.0
-            })
+    
+    # Sort known trackers by ML safety score (most invasive/lowest score first)
+    def get_domain_sort_key(domain):
+        # Use ML score if available (lower = more invasive, so we want those first)
+        ml_score = domain_score_lookup.get(domain, None)
+        if ml_score is not None:
+            return ml_score  # Lower scores (more invasive) will be sorted first
+        else:
+            # Fallback to severity score for domains without ML scores
+            return get_tracker_severity_score(domain) * -1  # Negate so higher severity comes first
+    
+    sorted_known_trackers = sorted(
+        known_trackers_for_response,
+        key=get_domain_sort_key
+    )
+    
+    # Now create the tracking domains with scores list
+    for domain in sorted_known_trackers:
+        score = domain_score_lookup.get(domain, 95.0)  # Fallback to 95.0
+        logger.debug(f"Looking up ML score for domain '{domain}': {score}")
+        tracking_domains_with_scores.append({
+            "domain": domain,
+            "score": round(score, 1)
+        })
     
     logger.info(f"Final tracking_domains_with_scores: {tracking_domains_with_scores}")
     
@@ -595,20 +593,9 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     else:  # 6+ non-tracking third parties
         penalties["third_party_domains"] = -1.0
     
-    # (1b) tracking_domains penalty (much heavier)
-    trackers = features.num_tracking_domains
-    if trackers == 0:
-        penalties["tracking_domains"] = 0.0
-    elif trackers == 1:
-        penalties["tracking_domains"] = -3.0  # Significant penalty for even 1 tracker
-    elif trackers <= 3:
-        penalties["tracking_domains"] = -6.0
-    elif trackers <= 5:
-        penalties["tracking_domains"] = -9.0
-    elif trackers <= 10:
-        penalties["tracking_domains"] = -12.0
-    else:  # 11+ trackers - very severe
-        penalties["tracking_domains"] = -15.0
+    # (1b) tracking_domains penalty - REMOVED 
+    # With ML model working properly, domain-specific scores are sufficient
+    penalties["tracking_domains"] = 0.0
     
     # Removed third-party cookies penalty calculation
     
