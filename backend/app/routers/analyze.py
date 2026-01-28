@@ -173,9 +173,15 @@ def extract_domain_keywords(domain: str) -> set:
 
 def is_third_party_domain(request_domain: str, page_domain: str) -> bool:
     """Check if a domain is third-party relative to page domain using keyword matching."""
-    # Remove www. prefix for comparison
-    clean_request = request_domain.replace("www.", "").lower()
-    clean_page = page_domain.replace("www.", "").lower()
+    # Normalize domains (consistent with ML scoring logic)
+    clean_request = request_domain.lower()
+    clean_page = page_domain.lower()
+    
+    # Remove www. prefix from both
+    if clean_request.startswith('www.'):
+        clean_request = clean_request[4:]
+    if clean_page.startswith('www.'):
+        clean_page = clean_page[4:]
     
     # If domains are exactly the same, it's first-party
     if clean_request == clean_page:
@@ -191,6 +197,13 @@ def is_third_party_domain(request_domain: str, page_domain: str) -> bool:
     
     # Extract the base domain (e.g., "mail.google.com" -> "google.com")
     def get_base_domain(domain):
+        # Remove common tracking subdomains (consistent with ML scoring)
+        tracking_prefixes = ['stats.', 'analytics.', 'tracking.', 'data.', 'metrics.', 'secure.', 'api.', 'cdn.', 'static.']
+        for prefix in tracking_prefixes:
+            if domain.startswith(prefix):
+                domain = domain[len(prefix):]
+                break
+                
         parts = domain.split('.')
         if len(parts) >= 2:
             # For common cases, return the last two parts (domain.tld)
@@ -490,6 +503,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
             # Add scores to tracking domains
             for domain in sorted_known_trackers:
                 score = domain_score_lookup.get(domain, 95.0)  # Fallback to 95.0
+                logger.debug(f"Looking up ML score for domain '{domain}': {score}")
                 tracking_domains_with_scores.append({
                     "domain": domain,
                     "score": round(score, 1)

@@ -102,34 +102,75 @@ class DomainScoringService:
         Returns (score, is_known) where score is 0-100 (higher = safer)
         """
         if not self.is_loaded:
-            return self.UNKNOWN_DOMAIN_SCORE, False
-            
-        # Check if domain is known
-        if domain not in self.domain_features:
+            logger.debug(f"ML service not loaded, returning unknown score for {domain}")
             return self.UNKNOWN_DOMAIN_SCORE, False
         
-        try:
-            # Get domain features
-            features = self.domain_features[domain]
+        original_domain = domain.lower()
+        
+        # List of domain variations to try
+        variations_to_try = [
+            original_domain,  # Exact match first
+        ]
+        
+        # Remove common prefixes
+        if original_domain.startswith('www.'):
+            variations_to_try.append(original_domain[4:])
+        else:
+            variations_to_try.append(f"www.{original_domain}")
             
-            # Convert to numpy array in correct order
-            feature_values = np.array([features[name] for name in self.feature_names]).reshape(1, -1)
-            
-            # Scale features
-            feature_values_scaled = self.scaler.transform(feature_values)
-            
-            # Predict tracking intensity (0-1, higher = more tracking)
-            predicted_intensity = self.model.predict(feature_values_scaled)[0]
-            
-            # Convert to safety score (0-100, higher = safer)
-            domain_safe_score = round((1.0 - predicted_intensity) * 100, 2)
-            domain_safe_score = max(0.0, min(100.0, domain_safe_score))  # Clamp to 0-100
-            
-            return domain_safe_score, True
-            
-        except Exception as e:
-            logger.error(f"Error computing score for domain {domain}: {e}")
-            return self.UNKNOWN_DOMAIN_SCORE, False
+        # Try without common tracking subdomains
+        tracking_prefixes = ['stats.', 'analytics.', 'tracking.', 'data.', 'metrics.', 'secure.', 'api.', 'cdn.', 'static.']
+        for prefix in tracking_prefixes:
+            if original_domain.startswith(prefix):
+                base_domain = original_domain[len(prefix):]
+                variations_to_try.append(base_domain)
+                variations_to_try.append(f"www.{base_domain}")
+                
+        # Try parent domain for complex subdomains
+        parts = original_domain.split('.')
+        if len(parts) >= 3:
+            parent_domain = '.'.join(parts[-2:])  # Get domain.tld
+            variations_to_try.append(parent_domain)
+            variations_to_try.append(f"www.{parent_domain}")
+        
+        # Remove duplicates while preserving order
+        unique_variations = []
+        seen = set()
+        for var in variations_to_try:
+            if var not in seen:
+                unique_variations.append(var)
+                seen.add(var)
+        
+        # Try each variation
+        for variation in unique_variations:
+            if variation in self.domain_features:
+                logger.debug(f"Found ML score for '{original_domain}' using variation '{variation}'")
+                try:
+                    # Get domain features
+                    features = self.domain_features[variation]
+                    
+                    # Convert to numpy array in correct order
+                    feature_values = np.array([features[name] for name in self.feature_names]).reshape(1, -1)
+                    
+                    # Scale features
+                    feature_values_scaled = self.scaler.transform(feature_values)
+                    
+                    # Predict tracking intensity (0-1, higher = more tracking)
+                    predicted_intensity = self.model.predict(feature_values_scaled)[0]
+                    
+                    # Convert to safety score (0-100, higher = safer)
+                    domain_safe_score = round((1.0 - predicted_intensity) * 100, 2)
+                    domain_safe_score = max(0.0, min(100.0, domain_safe_score))  # Clamp to 0-100
+                    
+                    return domain_safe_score, True
+                    
+                except Exception as e:
+                    logger.error(f"Error computing score for domain {original_domain} (variation {variation}): {e}")
+                    continue
+        
+        # If no variation worked, log and return unknown score
+        logger.debug(f"Domain '{original_domain}' not found in tracker radar data (tried {len(unique_variations)} variations)")
+        return self.UNKNOWN_DOMAIN_SCORE, False
     
     def score_domains(self, domain_counts: List[Dict[str, Union[str, int]]]) -> DomainScoringResponse:
         """
