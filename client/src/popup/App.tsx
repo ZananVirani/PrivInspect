@@ -322,11 +322,19 @@ function App() {
             {analysisResult.computed_features && (
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <div className="bg-white p-2 rounded border">
-                  <div className="text-xs text-gray-600">
-                    Third-Party Domains
-                  </div>
+                  <div className="text-xs text-gray-600">Third-Party Ratio</div>
                   <div className="text-lg font-bold text-blue-600">
-                    {analysisResult.computed_features.num_third_party_domains}
+                    {analysisResult.computed_features.num_total_domains &&
+                    analysisResult.computed_features.num_total_domains > 0
+                      ? Math.round(
+                          (analysisResult.computed_features
+                            .num_third_party_domains /
+                            analysisResult.computed_features
+                              .num_total_domains) *
+                            100,
+                        )
+                      : 0}
+                    %
                   </div>
                 </div>
                 <div className="bg-white p-2 rounded border">
@@ -338,9 +346,9 @@ function App() {
                   </div>
                 </div>
                 <div className="bg-white p-2 rounded border">
-                  <div className="text-xs text-gray-600">Known Trackers</div>
+                  <div className="text-xs text-gray-600">Unique Domains</div>
                   <div className="text-lg font-bold text-red-600">
-                    {analysisResult.known_trackers.length}
+                    {analysisResult.computed_features.num_total_domains || 0}
                   </div>
                 </div>
                 <div className="bg-white p-2 rounded border">

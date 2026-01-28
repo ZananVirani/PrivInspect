@@ -318,17 +318,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
         )
     features.fingerprinting_flag = 1 if has_fingerprinting else 0
     
-    # Feature 10: Tracker script ratio (third-party tracker scripts / third-party scripts)
-    third_party_tracker_scripts = 0
-    total_third_party_scripts = 0
-    for script in data.scripts:
-        if script.domain and is_third_party_domain(script.domain, page_domain):
-            total_third_party_scripts += 1
-            if is_known_tracker(script.domain):
-                third_party_tracker_scripts += 1
-    
+    # Feature 10: Tracker script ratio (tracking domains / total domains)
     features.tracker_script_ratio = (
-        third_party_tracker_scripts / total_third_party_scripts if total_third_party_scripts > 0 else 0.0
+        features.num_tracking_domains / features.num_total_domains if features.num_total_domains > 0 else 0.0
     )
     
     return features
