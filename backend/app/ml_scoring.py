@@ -227,23 +227,29 @@ class DomainScoringService:
         )
     
     def extract_domains_from_analyze_request(self, request: AnalyzeRequest) -> List[Dict[str, Union[str, int]]]:
-        """Extract domains and counts from AnalyzeRequest"""
+        """Extract domains and counts from AnalyzeRequest using normalized domain names"""
+        # Import normalize_domain function from analyze module
+        from app.routers.analyze import normalize_domain
+        
         domain_counts = {}
         
         # Extract from network requests
         for req in request.network_requests:
             if req.domain:
-                domain_counts[req.domain] = domain_counts.get(req.domain, 0) + 1
+                normalized_domain = normalize_domain(req.domain)
+                domain_counts[normalized_domain] = domain_counts.get(normalized_domain, 0) + 1
         
         # Extract from scripts
         for script in request.scripts:
             if script.domain:
-                domain_counts[script.domain] = domain_counts.get(script.domain, 0) + 1
+                normalized_domain = normalize_domain(script.domain)
+                domain_counts[normalized_domain] = domain_counts.get(normalized_domain, 0) + 1
         
         # Extract from cookies
         for cookie in request.raw_cookies:
             if cookie.domain:
-                domain_counts[cookie.domain] = domain_counts.get(cookie.domain, 0) + 1
+                normalized_domain = normalize_domain(cookie.domain)
+                domain_counts[normalized_domain] = domain_counts.get(normalized_domain, 0) + 1
         
         # Convert to list format
         return [{"domain": domain, "count": count} for domain, count in domain_counts.items()]

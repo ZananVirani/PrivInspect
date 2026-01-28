@@ -141,11 +141,42 @@ def is_known_tracker(domain: str) -> bool:
 
 logger = logging.getLogger(__name__)
 
+def normalize_domain(domain: str) -> str:
+    """
+    Normalize domain by consolidating subdomains to parent domains.
+    This ensures consistent domain handling across the application.
+    """
+    if not domain:
+        return domain
+        
+    # Remove leading dots and normalize case
+    clean_domain = domain.strip('.').lower()
+    
+    # Remove www. prefix
+    if clean_domain.startswith('www.'):
+        clean_domain = clean_domain[4:]
+    
+    # Split into parts
+    parts = clean_domain.split('.')
+    
+    # If it's already a basic domain.tld format, return as-is
+    if len(parts) <= 2:
+        return clean_domain
+    
+    # For longer domains, extract the parent domain (last 2 parts)
+    # This consolidates all subdomains to their parent domain
+    # e.g., ab.chatgpt.com -> chatgpt.com
+    # e.g., stats.g.doubleclick.net -> doubleclick.net
+    parent_domain = '.'.join(parts[-2:])
+    
+    return parent_domain
+
 def extract_domain_from_url(url: str) -> str:
-    """Extract domain from URL safely."""
+    """Extract and normalize domain from URL safely."""
     try:
         from urllib.parse import urlparse
-        return urlparse(url).netloc.lower()
+        domain = urlparse(url).netloc.lower()
+        return normalize_domain(domain)
     except:
         return ""
 
@@ -172,50 +203,32 @@ def extract_domain_keywords(domain: str) -> set:
     return keywords
 
 def is_third_party_domain(request_domain: str, page_domain: str) -> bool:
-    """Check if a domain is third-party relative to page domain using keyword matching."""
-    # Normalize domains (consistent with ML scoring logic)
-    clean_request = request_domain.lower()
-    clean_page = page_domain.lower()
+    """Check if a domain is third-party relative to page domain using normalized domains."""
+    # Normalize both domains for consistent comparison
+    clean_request = normalize_domain(request_domain)
+    clean_page = normalize_domain(page_domain)
     
-    # Remove www. prefix from both
-    if clean_request.startswith('www.'):
-        clean_request = clean_request[4:]
-    if clean_page.startswith('www.'):
-        clean_page = clean_page[4:]
-    
-    # If domains are exactly the same, it's first-party
+    # If normalized domains are the same, it's first-party
     if clean_request == clean_page:
         return False
     
-    # Check if request domain is a subdomain of page domain (traditional first-party)
-    if clean_request.endswith(f".{clean_page}"):
-        return False
+    # Additional keyword-based matching for related domains
+    page_keywords = extract_domain_keywords(clean_page)
+    request_keywords = extract_domain_keywords(clean_request)
     
-    # Check if page domain is a subdomain of request domain  
-    if clean_page.endswith(f".{clean_request}"):
-        return False
+    # If they share significant keywords, consider them first-party
+    for page_keyword in page_keywords:
+        if len(page_keyword) >= 4:  # Only consider meaningful keywords
+            for request_keyword in request_keywords:
+                if len(request_keyword) >= 4:
+                    # Check for exact match or one contains the other
+                    if (page_keyword == request_keyword or 
+                        page_keyword in request_keyword or 
+                        request_keyword in page_keyword):
+                        return False  # First-party
     
-    # Extract the base domain (e.g., "mail.google.com" -> "google.com")
-    def get_base_domain(domain):
-        # Remove common tracking subdomains (consistent with ML scoring)
-        tracking_prefixes = ['stats.', 'analytics.', 'tracking.', 'data.', 'metrics.', 'secure.', 'api.', 'cdn.', 'static.']
-        for prefix in tracking_prefixes:
-            if domain.startswith(prefix):
-                domain = domain[len(prefix):]
-                break
-                
-        parts = domain.split('.')
-        if len(parts) >= 2:
-            # For common cases, return the last two parts (domain.tld)
-            return '.'.join(parts[-2:])
-        return domain
-    
-    # Check if they share the same base domain
-    base_request = get_base_domain(clean_request)
-    base_page = get_base_domain(clean_page)
-    
-    if base_request == base_page:
-        return False  # Same base domain = first-party
+    # If no match, it's third-party
+    return True
     
     # Extract keywords from both domains for additional matching
     page_keywords = extract_domain_keywords(clean_page)
@@ -255,34 +268,37 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Process network requests
     for req in data.network_requests:
         if req.domain:
-            all_domains.add(req.domain)
+            normalized_domain = normalize_domain(req.domain)
+            all_domains.add(normalized_domain)
             # Backend computes third-party status
-            if is_third_party_domain(req.domain, page_domain):
-                third_party_domains.add(req.domain)
+            if is_third_party_domain(normalized_domain, page_domain):
+                third_party_domains.add(normalized_domain)
                 third_party_request_count += 1
             # Track ALL tracker domains (third-party AND first-party)
-            if is_known_tracker(req.domain):
-                tracking_domains.add(req.domain)
+            if is_known_tracker(normalized_domain):
+                tracking_domains.add(normalized_domain)
     
     # Process script domains
     for script in data.scripts:
         if script.domain:
-            all_domains.add(script.domain)
-            if is_third_party_domain(script.domain, page_domain):
-                third_party_domains.add(script.domain)
+            normalized_domain = normalize_domain(script.domain)
+            all_domains.add(normalized_domain)
+            if is_third_party_domain(normalized_domain, page_domain):
+                third_party_domains.add(normalized_domain)
             # Track ALL tracker domains
-            if is_known_tracker(script.domain):
-                tracking_domains.add(script.domain)
+            if is_known_tracker(normalized_domain):
+                tracking_domains.add(normalized_domain)
     
     # Process cookie domains
     for cookie in data.raw_cookies:
         if cookie.domain:
-            all_domains.add(cookie.domain)
-            if is_third_party_domain(cookie.domain, page_domain):
-                third_party_domains.add(cookie.domain)
+            normalized_domain = normalize_domain(cookie.domain)
+            all_domains.add(normalized_domain)
+            if is_third_party_domain(normalized_domain, page_domain):
+                third_party_domains.add(normalized_domain)
             # Track ALL tracker domains
-            if is_known_tracker(cookie.domain):
-                tracking_domains.add(cookie.domain)
+            if is_known_tracker(normalized_domain):
+                tracking_domains.add(normalized_domain)
     
     # Feature 1: Number of unique third-party domains (across ALL sources: scripts, cookies, requests)
     features.num_third_party_domains = len(third_party_domains)
@@ -453,29 +469,32 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     # Check network requests
     for req in data.network_requests:
         if req.domain:
-            if is_third_party_domain(req.domain, data.page_domain):
-                third_party_domains_for_response.add(req.domain)
+            normalized_domain = normalize_domain(req.domain)
+            if is_third_party_domain(normalized_domain, data.page_domain):
+                third_party_domains_for_response.add(normalized_domain)
             # Check ALL domains for tracking (not just third-party)
-            if is_known_tracker(req.domain):
-                known_trackers_for_response.add(req.domain)
+            if is_known_tracker(normalized_domain):
+                known_trackers_for_response.add(normalized_domain)
     
     # Check scripts
     for script in data.scripts:
         if script.domain:
-            if is_third_party_domain(script.domain, data.page_domain):
-                third_party_domains_for_response.add(script.domain)
+            normalized_domain = normalize_domain(script.domain)
+            if is_third_party_domain(normalized_domain, data.page_domain):
+                third_party_domains_for_response.add(normalized_domain)
             # Check ALL domains for tracking (not just third-party)
-            if is_known_tracker(script.domain):
-                known_trackers_for_response.add(script.domain)
+            if is_known_tracker(normalized_domain):
+                known_trackers_for_response.add(normalized_domain)
     
     # Check cookies
     for cookie in data.raw_cookies:
         if cookie.domain:
-            if is_third_party_domain(cookie.domain, data.page_domain):
-                third_party_domains_for_response.add(cookie.domain)
+            normalized_domain = normalize_domain(cookie.domain)
+            if is_third_party_domain(normalized_domain, data.page_domain):
+                third_party_domains_for_response.add(normalized_domain)
             # Check ALL domains for tracking (not just third-party)
-            if is_known_tracker(cookie.domain):
-                known_trackers_for_response.add(cookie.domain)
+            if is_known_tracker(normalized_domain):
+                known_trackers_for_response.add(normalized_domain)
     
     # Add fallback message if no issues detected
     if not findings:
