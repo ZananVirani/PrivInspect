@@ -102,6 +102,7 @@ class AnalyzeResponse(BaseModel):
     # Third-party analysis
     third_party_domains: List[str] = []
     known_trackers: List[str] = []
+    known_trackers_with_scores: Optional[List[Dict[str, Any]]] = None
     
     # Privacy assessment
     privacy_level: Optional[str] = None  # "low", "medium", "high"

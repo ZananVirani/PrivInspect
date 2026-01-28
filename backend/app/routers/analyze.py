@@ -476,6 +476,45 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         reverse=True  # Most severe first
     )
     
+    # Get individual domain scores for tracking domains
+    tracking_domains_with_scores = []
+    try:
+        if data and domain_scoring_service.is_loaded:
+            # Get detailed scoring for all domains
+            domain_counts = domain_scoring_service.extract_domains_from_analyze_request(data)
+            scoring_result = domain_scoring_service.score_domains(domain_counts)
+            
+            # Create lookup for domain scores
+            domain_score_lookup = {ds.domain: ds.domain_safe_score for ds in scoring_result.domains}
+            
+            # Add scores to tracking domains
+            for domain in sorted_known_trackers:
+                score = domain_score_lookup.get(domain, 95.0)  # Fallback to 95.0
+                tracking_domains_with_scores.append({
+                    "domain": domain,
+                    "score": round(score, 1)
+                })
+            
+            logger.info(f"ML scoring successful. Created {len(tracking_domains_with_scores)} tracking domains with scores")
+        else:
+            # Fallback without scores
+            for domain in sorted_known_trackers:
+                tracking_domains_with_scores.append({
+                    "domain": domain,
+                    "score": 95.0
+                })
+            logger.info(f"ML scoring not available. Created {len(tracking_domains_with_scores)} tracking domains with fallback scores")
+    except Exception as e:
+        logger.warning(f"Failed to get domain scores: {e}")
+        # Fallback without scores
+        for domain in sorted_known_trackers:
+            tracking_domains_with_scores.append({
+                "domain": domain,
+                "score": 95.0
+            })
+    
+    logger.info(f"Final tracking_domains_with_scores: {tracking_domains_with_scores}")
+    
     return {
         "privacy_score": privacy_score,
         "cookies_analyzed": len(data.raw_cookies),
@@ -487,6 +526,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         "recommendations": recommendations,
         "third_party_domains": list(third_party_domains_for_response),
         "known_trackers": sorted_known_trackers,
+        "known_trackers_with_scores": tracking_domains_with_scores,
         "privacy_level": privacy_level
     }
 

@@ -26,6 +26,10 @@ interface AnalysisResult {
   findings: string[];
   third_party_domains: string[];
   known_trackers: string[];
+  known_trackers_with_scores?: Array<{
+    domain: string;
+    score: number;
+  }>;
   computed_features?: {
     num_third_party_domains: number;
     num_third_party_scripts: number;
@@ -145,6 +149,10 @@ function App() {
         token,
       );
       console.log("Analysis Result:", analysisResult);
+      console.log(
+        "known_trackers_with_scores in result:",
+        analysisResult.known_trackers_with_scores,
+      );
       setAnalysisResult(analysisResult);
     } catch (error) {
       console.error("Analysis failed:", error);
@@ -214,9 +222,21 @@ function App() {
     }
   };
 
-  const getTopTrackingDomains = (knownTrackers: string[]) => {
-    // Backend now sorts trackers by severity, so just take the first 5 (most severe)
-    return knownTrackers.slice(0, 5);
+  const getTopTrackingDomains = (
+    knownTrackers: string[],
+    trackersWithScores?: Array<{ domain: string; score: number }>,
+  ) => {
+    // Use trackers with scores if available, otherwise fall back to domain names
+    const domainsToShow =
+      trackersWithScores && trackersWithScores.length > 0
+        ? trackersWithScores.slice(0, 5)
+        : knownTrackers.slice(0, 5).map((domain) => ({ domain, score: null }));
+
+    // Debug logging
+    console.log("trackersWithScores:", trackersWithScores);
+    console.log("domainsToShow:", domainsToShow);
+
+    return domainsToShow;
   };
 
   const requestPermissions = async () => {
@@ -381,23 +401,30 @@ function App() {
               Top Tracking Domains ({analysisResult.known_trackers.length})
             </h3>
             <div className="space-y-2">
-              {getTopTrackingDomains(analysisResult.known_trackers).map(
-                (domain, index) => (
-                  <div
-                    key={domain}
-                    className="flex items-center gap-2 p-2 bg-white rounded border"
-                  >
-                    <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
-                      <span className="text-xs font-bold text-red-600">
-                        {index + 1}
-                      </span>
-                    </div>
-                    <div className="flex-1 text-sm font-mono text-gray-800 truncate">
-                      {domain}
-                    </div>
+              {getTopTrackingDomains(
+                analysisResult.known_trackers,
+                analysisResult.known_trackers_with_scores,
+              ).map((item, index) => (
+                <div
+                  key={item.domain}
+                  className="flex items-center gap-2 p-2 bg-white rounded border"
+                >
+                  <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-bold text-red-600">
+                      {index + 1}
+                    </span>
                   </div>
-                ),
-              )}
+                  <div className="flex-1 text-sm font-mono text-gray-800 truncate">
+                    {item.domain}
+                  </div>
+                  {item.score !== null && item.score !== undefined && (
+                    <div className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                      {item.score}
+                    </div>
+                  )}
+                  <Eye className="w-4 h-4 text-red-500" />
+                </div>
+              ))}
               {analysisResult.known_trackers.length > 5 && (
                 <div className="text-xs text-center text-gray-500 italic">
                   +{analysisResult.known_trackers.length - 5} more tracking
