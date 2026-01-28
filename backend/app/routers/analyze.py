@@ -277,6 +277,9 @@ def compute_privacy_features(data: AnalyzeRequest) -> PrivacyFeatures:
     # Feature 1b: Number of tracking domains (both third-party AND first-party)
     features.num_tracking_domains = len(tracking_domains)
     
+    # Feature 1c: Total unique domains (both first-party and third-party)
+    features.num_total_domains = len(all_domains)
+    
     # Feature 6: Number of persistent cookies (non-session cookies)
     persistent_cookies = 0
     for cookie in data.raw_cookies:
@@ -447,27 +450,27 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         if req.domain:
             if is_third_party_domain(req.domain, data.page_domain):
                 third_party_domains_for_response.add(req.domain)
-                # Only check if tracker AFTER confirming it's third-party
-                if is_known_tracker(req.domain):
-                    known_trackers_for_response.add(req.domain)
+            # Check ALL domains for tracking (not just third-party)
+            if is_known_tracker(req.domain):
+                known_trackers_for_response.add(req.domain)
     
     # Check scripts
     for script in data.scripts:
         if script.domain:
             if is_third_party_domain(script.domain, data.page_domain):
                 third_party_domains_for_response.add(script.domain)
-                # Only check if tracker AFTER confirming it's third-party
-                if is_known_tracker(script.domain):
-                    known_trackers_for_response.add(script.domain)
+            # Check ALL domains for tracking (not just third-party)
+            if is_known_tracker(script.domain):
+                known_trackers_for_response.add(script.domain)
     
     # Check cookies
     for cookie in data.raw_cookies:
         if cookie.domain:
             if is_third_party_domain(cookie.domain, data.page_domain):
                 third_party_domains_for_response.add(cookie.domain)
-                # Only check if tracker AFTER confirming it's third-party
-                if is_known_tracker(cookie.domain):
-                    known_trackers_for_response.add(cookie.domain)
+            # Check ALL domains for tracking (not just third-party)
+            if is_known_tracker(cookie.domain):
+                known_trackers_for_response.add(cookie.domain)
     
     # Add fallback message if no issues detected
     if not findings:

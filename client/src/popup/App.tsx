@@ -31,6 +31,8 @@ interface AnalysisResult {
     num_third_party_scripts: number;
     num_third_party_cookies: number;
     num_persistent_cookies: number;
+    num_tracking_domains?: number;
+    num_total_domains?: number;
     tracker_script_ratio: number;
     fingerprinting_flag: number;
   };
@@ -46,7 +48,7 @@ function App() {
 
   const [loading, setLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
-    null
+    null,
   );
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
@@ -140,7 +142,7 @@ function App() {
       // Send to backend for analysis using new comprehensive method
       const analysisResult = await ApiService.analyzeComprehensivePrivacy(
         results,
-        token
+        token,
       );
       console.log("Analysis Result:", analysisResult);
       setAnalysisResult(analysisResult);
@@ -303,7 +305,7 @@ function App() {
               </div>
               <div
                 className={`px-4 py-2 rounded-full text-lg font-bold ${getGradeColor(
-                  analysisResult.privacy_grade
+                  analysisResult.privacy_grade,
                 )}`}
               >
                 {analysisResult.privacy_grade}
@@ -344,13 +346,15 @@ function App() {
                 <div className="bg-white p-2 rounded border">
                   <div className="text-xs text-gray-600">Tracker Ratio</div>
                   <div className="text-lg font-bold text-purple-600">
-                    {analysisResult.computed_features.num_third_party_domains >
-                    0
+                    {analysisResult.computed_features.num_total_domains &&
+                    analysisResult.computed_features.num_total_domains > 0
                       ? Math.round(
-                          (analysisResult.known_trackers.length /
+                          ((analysisResult.computed_features
+                            .num_tracking_domains ||
+                            analysisResult.known_trackers.length) /
                             analysisResult.computed_features
-                              .num_third_party_domains) *
-                            100
+                              .num_total_domains) *
+                            100,
                         )
                       : 0}
                     %
@@ -385,7 +389,7 @@ function App() {
                     </div>
                     <Eye className="w-4 h-4 text-red-500" />
                   </div>
-                )
+                ),
               )}
               {analysisResult.known_trackers.length > 5 && (
                 <div className="text-xs text-center text-gray-500 italic">

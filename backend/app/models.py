@@ -46,6 +46,7 @@ class PrivacyFeatures(BaseModel):
     """Pre-computed privacy features for the core metrics."""
     num_third_party_domains: int = 0       # Feature 1
     num_tracking_domains: int = 0          # Feature 1b - Tracking domains specifically
+    num_total_domains: int = 0             # Total unique domains (first + third party)
     num_persistent_cookies: int = 0        # Feature 6
     has_analytics_global: int = 0          # Feature 7 (boolean as int)
     num_inline_scripts: int = 0            # Feature 8
