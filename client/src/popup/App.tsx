@@ -396,10 +396,14 @@ function App() {
         {/* Top Tracking Domains - Only show if we have trackers */}
         {analysisResult && analysisResult.known_trackers.length > 0 && (
           <div className="mb-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200">
-            <h3 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-red-700 mb-1 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
               Top Tracking Domains ({analysisResult.known_trackers.length})
             </h3>
+            <p className="text-xs text-red-600 mb-3 opacity-75">
+              Tracking intensity scale: 0-100 (100 = most invasive, 0 = safer
+              tracking)
+            </p>
             <div className="space-y-2">
               {getTopTrackingDomains(
                 analysisResult.known_trackers,
@@ -418,11 +422,10 @@ function App() {
                     {item.domain}
                   </div>
                   {item.score !== null && item.score !== undefined && (
-                    <div className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                      {item.score}
+                    <div className="text-xs font-semibold text-white bg-red-500 px-2 py-1 rounded">
+                      {Math.round(100 - item.score)}
                     </div>
                   )}
-                  <Eye className="w-4 h-4 text-red-500" />
                 </div>
               ))}
               {analysisResult.known_trackers.length > 5 && (
