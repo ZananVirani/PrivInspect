@@ -426,17 +426,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         findings.append("Website analytics tracking detected")
         recommendations.append("Use privacy-focused search engines and browsers")
     
-    if penalties["inline_scripts"] < 0:
-        inline = features.num_inline_scripts
-        if inline >= 11:
-            findings.append(f"Excessive inline scripts ({inline} embedded scripts)")
-            recommendations.append("Use strict content security policies")
-        elif inline >= 7:
-            findings.append(f"High number of inline scripts ({inline} embedded scripts)")
-            recommendations.append("Enable script blocking for enhanced security")
-        else:
-            findings.append(f"Multiple inline scripts detected ({inline} embedded scripts)")
-            recommendations.append("Monitor inline script content for privacy")
+    # Inline scripts findings removed - not necessarily a privacy issue
     
     if penalties["fingerprinting"] < 0:
         findings.append("Browser fingerprinting techniques detected")
@@ -618,14 +608,9 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     else:
         penalties["analytics_global"] = 0.0
     
-    # (8) inline_scripts penalty (proportion-based and gentler)
-    # Since we removed third-party scripts count, just check inline scripts count directly
-    if features.num_inline_scripts == 0:
-        penalties["inline_scripts"] = 0.0
-    elif features.num_inline_scripts <= 3:
-        penalties["inline_scripts"] = -0.5
-    else:  # 4+ inline scripts
-        penalties["inline_scripts"] = -1.0
+    # (8) inline_scripts penalty - REMOVED
+    # Inline scripts are not necessarily a privacy issue
+    penalties["inline_scripts"] = 0.0
     
     # (9) fingerprinting_flag penalty (reduced)
     if features.fingerprinting_flag == 1:
