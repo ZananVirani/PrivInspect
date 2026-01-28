@@ -387,7 +387,6 @@ function App() {
                     <div className="flex-1 text-sm font-mono text-gray-800 truncate">
                       {domain}
                     </div>
-                    <Eye className="w-4 h-4 text-red-500" />
                   </div>
                 ),
               )}
@@ -579,6 +578,15 @@ function App() {
                   <strong className="text-gray-800">Tracking Detection:</strong>{" "}
                   Based on DuckDuckGo's Tracker Radar database, which may not
                   include all tracking services.
+                </p>
+
+                <p>
+                  <strong className="text-gray-800">
+                    Tracking vs Malicious:
+                  </strong>{" "}
+                  Tracking domains identified may serve legitimate purposes like
+                  analytics, performance monitoring, or enhanced user
+                  experience. Detection does not imply malicious intent.
                 </p>
 
                 <p>
