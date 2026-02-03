@@ -206,13 +206,13 @@ app.include_router(
 app.include_router(
     analyze.router,
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(times=20, seconds=60))]   # 20 requests per minute for analysis
+    dependencies=[Depends(RateLimiter(times=60, seconds=60))]   # 20 requests per minute for analysis
 )
 
 app.include_router(
     ml_router,
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(times=10, seconds=60))]   # 10 requests per minute for ML scoring
+    dependencies=[Depends(RateLimiter(times=60, seconds=60))]   # 10 requests per minute for ML scoring
 )
 
 if __name__ == "__main__":
