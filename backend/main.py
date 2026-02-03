@@ -200,19 +200,19 @@ async def health_check():
 app.include_router(
     auth.router,
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(times=5, seconds=60))]  # 5 requests per minute
+    dependencies=[Depends(RateLimiter(times=settings.AUTH_RATE_LIMIT, seconds=60))]  # Configurable auth rate limit
 )
 
 app.include_router(
     analyze.router,
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(times=60, seconds=60))]   # 20 requests per minute for analysis
+    dependencies=[Depends(RateLimiter(times=settings.ANALYZE_RATE_LIMIT, seconds=60))]   # Configurable analysis rate limit
 )
 
 app.include_router(
     ml_router,
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(times=60, seconds=60))]   # 10 requests per minute for ML scoring
+    dependencies=[Depends(RateLimiter(times=settings.ANALYZE_RATE_LIMIT, seconds=60))]   # Same as analyze endpoint
 )
 
 if __name__ == "__main__":

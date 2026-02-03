@@ -47,29 +47,22 @@ def get_optional_secret(secret_name: str, default: str = None) -> Optional[str]:
 
 class Settings(BaseSettings):
     """Application settings with secure secret management."""
-    
-    # JWT Configuration - CRITICAL SECRET
+
     JWT_SECRET: str = get_secret("JWT_SECRET", "dev-secret-change-in-production")
-    
-    # JWT Secret Rotation - OPTIONAL OLD SECRET FOR GRACE PERIOD
+
     JWT_SECRET_OLD: Optional[str] = get_optional_secret("JWT_SECRET_OLD")
-    
-    # Extension Security - MODERATE SECRET
+
     EXTENSION_CLIENT_HEADER: str = get_secret("EXTENSION_CLIENT_HEADER", "privacy-inspector")
-    
-    # Extension Origin - PUBLIC BUT CONFIGURABLE
+
     ALLOWED_ORIGIN: str = get_secret("ALLOWED_ORIGIN", "chrome-extension://your-extension-id-here")
     
-    # Redis Configuration
     REDIS_URL: str = get_secret("REDIS_URL", "redis://localhost:6379")
     
-    # Server Configuration
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
-    # Rate Limiting
     AUTH_RATE_LIMIT: int = int(os.getenv("AUTH_RATE_LIMIT", "10"))
-    ANALYZE_RATE_LIMIT: int = int(os.getenv("ANALYZE_RATE_LIMIT", "5"))
+    ANALYZE_RATE_LIMIT: int = int(os.getenv("ANALYZE_RATE_LIMIT", "60"))
     
     class Config:
         env_file = ".env"
