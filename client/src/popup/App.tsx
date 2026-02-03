@@ -83,9 +83,7 @@ function App() {
       if (backgroundActive && permissionsGranted) {
         await authenticateAndAnalyze();
       }
-    } catch (error) {
-      console.error("Error initializing popup:", error);
-    }
+    } catch (error) {}
   };
 
   const getValidToken = async (): Promise<string | null> => {
@@ -103,7 +101,6 @@ function App() {
 
       return authResponse.access_token;
     } catch (error) {
-      console.error("Authentication failed:", error);
       return null;
     }
   };
@@ -117,7 +114,6 @@ function App() {
       const token = await getValidToken();
 
       if (!token) {
-        console.error("Authentication failed");
         setAnalysisError(
           "Authentication failed. This could be due to: network connectivity issues, backend server unavailable, or browser security restrictions. Please check your internet connection and try again.",
         );
@@ -130,7 +126,6 @@ function App() {
         currentWindow: true,
       });
       if (!tab.id) {
-        console.error("No active tab found");
         setAnalysisError("No active tab found");
         return;
       }
@@ -140,7 +135,6 @@ function App() {
       });
 
       if (!results) {
-        console.error("Failed to collect page data");
         setAnalysisError("Failed to collect page data");
         return;
       }
@@ -150,14 +144,9 @@ function App() {
         results,
         token,
       );
-      console.log("Analysis Result:", analysisResult);
-      console.log(
-        "known_trackers_with_scores in result:",
-        analysisResult.known_trackers_with_scores,
-      );
+
       setAnalysisResult(analysisResult);
     } catch (error) {
-      console.error("Analysis failed:", error);
       setAnalysisError(
         "Analysis failed: " +
           (error as Error).message +
@@ -176,7 +165,6 @@ function App() {
           else resolve(response && response.status);
         });
       } catch (error) {
-        console.error("Error testing background:", error);
         resolve(false);
       }
     });
@@ -193,7 +181,6 @@ function App() {
         origins: hostPermissions,
       });
     } catch (error) {
-      console.error("Error checking permissions:", error);
       return false;
     }
   };
@@ -238,10 +225,6 @@ function App() {
         ? trackersWithScores.slice(0, 5)
         : knownTrackers.slice(0, 5).map((domain) => ({ domain, score: null }));
 
-    // Debug logging
-    console.log("trackersWithScores:", trackersWithScores);
-    console.log("domainsToShow:", domainsToShow);
-
     return domainsToShow;
   };
 
@@ -272,7 +255,6 @@ function App() {
 
       return granted;
     } catch (error) {
-      console.error("Error requesting permissions:", error);
       return false;
     }
   };

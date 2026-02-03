@@ -60,7 +60,7 @@ XMLHttpRequest.prototype.open = function (
   url: string | URL,
   async: boolean = true,
   username?: string | null,
-  password?: string | null
+  password?: string | null,
 ) {
   const requestData = {
     url: url.toString(),
@@ -92,13 +92,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               type: "GET_DETAILED_COOKIES",
               url: window.location.href,
             },
-            (response) => resolve(response?.cookies?.length || 0)
+            (response) => resolve(response?.cookies?.length || 0),
           );
         }),
         new Promise((resolve) => {
           chrome.runtime.sendMessage(
             { type: "GET_NETWORK_REQUESTS" },
-            (response) => resolve(response?.requests?.length || 0)
+            (response) => resolve(response?.requests?.length || 0),
           );
         }),
       ]).then(([cookieCount, webRequestCount]) => {
@@ -117,8 +117,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .then((data) => {
           sendResponse(data);
         })
-        .catch((error) => {
-          console.error("Error collecting comprehensive privacy data:", error);
+        .catch((_) => {
           sendResponse({ error: "Failed to collect privacy data" });
         });
       return true;
@@ -129,7 +128,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         { type: "GET_NETWORK_REQUESTS" },
         (response) => {
           sendResponse({ webRequestCount: response?.requests?.length || 0 });
-        }
+        },
       );
       return true; // Keep message channel open for async response
 
@@ -149,7 +148,7 @@ async function collectComprehensivePrivacyData() {
       { type: "GET_DETAILED_COOKIES", url: window.location.href },
       (response) => {
         resolve(response?.cookies || []);
-      }
+      },
     );
   });
 
@@ -242,7 +241,7 @@ async function collectComprehensivePrivacyData() {
     ];
 
     const isHighPriority = highPriorityKeywords.some((keyword) =>
-      url.includes(keyword)
+      url.includes(keyword),
     );
     const isThirdParty = getDomainFromUrl(req.url) !== window.location.hostname;
     const isApiCall = req.type === "xmlhttprequest" || req.type === "other";

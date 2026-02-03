@@ -114,7 +114,7 @@ export interface AnalysisResponse {
 class ApiService {
   private static async makeRequest(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ) {
     const url = `${API_BASE_URL}${endpoint}`;
 
@@ -133,7 +133,6 @@ class ApiService {
 
       return await response.json();
     } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
       throw error;
     }
   }
@@ -155,13 +154,11 @@ class ApiService {
   // Updated method to handle comprehensive privacy data
   static async analyzeComprehensivePrivacy(
     data: ComprehensivePrivacyData,
-    token: string
+    token: string,
   ): Promise<any> {
     if (!token) {
       throw new Error("No authentication token available");
     }
-
-    console.log("🔍 Sending comprehensive privacy data to backend:", data);
 
     return this.makeRequest("/api/v1/analyze", {
       method: "POST",
@@ -177,7 +174,7 @@ class ApiService {
   // Legacy method for backward compatibility
   static async analyzePrivacy(
     data: PageAnalysisData,
-    token: string
+    token: string,
   ): Promise<any> {
     if (!token) {
       throw new Error("No authentication token available");
@@ -264,7 +261,6 @@ class ApiService {
 
       return currentTime < payload.exp - 30;
     } catch (error) {
-      console.error("Token validation error:", error);
       return false;
     }
   }
