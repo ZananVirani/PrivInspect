@@ -43,7 +43,7 @@ class ExtensionAuthenticator {
       encoder.encode(secret),
       { name: "HMAC", hash: "SHA-256" },
       false,
-      ["sign"]
+      ["sign"],
     );
     const signature = await crypto.subtle.sign("HMAC", key, data);
     return Array.from(new Uint8Array(signature))
@@ -58,7 +58,7 @@ class ExtensionAuthenticator {
     const signature = await this.generateSignature(
       this.extensionId,
       timestamp,
-      serverSecret
+      serverSecret,
     );
 
     return {
@@ -80,7 +80,7 @@ class ExtensionAuthenticator {
     endpoint,
     data,
     jwtToken,
-    serverSecret = this.defaultSecret
+    serverSecret = this.defaultSecret,
   ) {
     const headers = await this.createAuthHeaders(jwtToken, serverSecret);
 
@@ -93,7 +93,7 @@ class ExtensionAuthenticator {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(
-        `API request failed: ${response.status} ${response.statusText} - ${errorText}`
+        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
       );
     }
 
@@ -117,7 +117,7 @@ class ExtensionAuthenticator {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(
-        `Authentication failed: ${response.status} - ${errorText}`
+        `Authentication failed: ${response.status} - ${errorText}`,
       );
     }
 
@@ -125,59 +125,6 @@ class ExtensionAuthenticator {
     return tokenData.access_token;
   }
 }
-
-// UPDATED USAGE EXAMPLE - Correct configuration
-/*
-const authenticator = new ExtensionAuthenticator(
-    chrome.runtime.id, // Unique extension ID
-    'http://localhost:8000/api/v1' // Correct server URL with /api/v1 prefix
-);
-
-// Complete workflow - authentication + analysis:
-async function analyzePrivacyData(privacyData) {
-    try {
-        // Step 1: Get JWT token (no server secret needed for auth)
-        const jwtToken = await authenticator.getAuthToken();
-        
-        // Step 2: Make authenticated analysis request
-        const result = await authenticator.makeAuthenticatedRequest(
-            '/analyze', // Endpoint (will become /api/v1/analyze)
-            { 
-                url: privacyData.url,
-                cookies: privacyData.cookies || [],
-                scripts: privacyData.scripts || []
-            },
-            jwtToken
-            // serverSecret is optional - uses default if not provided
-        );
-        
-        return result;
-    } catch (error) {
-        console.error('Privacy analysis failed:', error);
-        throw error;
-    }
-}
-
-// Simplified usage for quick testing:
-async function quickTest() {
-    const auth = new ExtensionAuthenticator('test-extension-id-12345');
-    
-    try {
-        const token = await auth.getAuthToken();
-        console.log('✅ Authentication successful');
-        
-        const result = await auth.makeAuthenticatedRequest('/analyze', {
-            url: 'https://example.com',
-            cookies: [],
-            scripts: []
-        }, token);
-        
-        console.log('✅ Analysis successful:', result);
-    } catch (error) {
-        console.error('❌ Error:', error.message);
-    }
-}
-*/
 
 // PRODUCTION DEPLOYMENT CHECKLIST:
 
@@ -243,7 +190,7 @@ class EnhancedExtensionAuthenticator extends ExtensionAuthenticator {
         console.warn(
           `Request failed, retrying in ${this.retryDelay}ms... (${
             retries + 1
-          }/${this.maxRetries})`
+          }/${this.maxRetries})`,
         );
         await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
         return this.makeRequestWithRetry(endpoint, data, jwtToken, retries + 1);

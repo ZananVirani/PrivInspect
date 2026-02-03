@@ -118,7 +118,9 @@ function App() {
 
       if (!token) {
         console.error("Authentication failed");
-        setAnalysisError("Authentication failed");
+        setAnalysisError(
+          "Authentication failed. This could be due to: network connectivity issues, backend server unavailable, or browser security restrictions. Please check your internet connection and try again.",
+        );
         return;
       }
 
@@ -156,7 +158,11 @@ function App() {
       setAnalysisResult(analysisResult);
     } catch (error) {
       console.error("Analysis failed:", error);
-      setAnalysisError("Analysis failed: " + (error as Error).message);
+      setAnalysisError(
+        "Analysis failed: " +
+          (error as Error).message +
+          " Please Refresh and Try Again.",
+      );
     } finally {
       setLoading(false);
     }
