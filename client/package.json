@@ -4,11 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:extension": "vite build --watch",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "build:extension": "npm run build && node scripts/post-build.js"
+    "dev": "vite --mode development",
+    "dev:extension": "vite build --mode development --watch",
+    "build": "tsc && vite build --mode development",
+    "build:prod": "tsc && vite build --mode production",
+    "build:extension": "npm run build && node scripts/post-build.js",
+    "build:extension:prod": "npm run build:prod && node scripts/post-build.js",
+    "preview": "vite preview"
   },
   "dependencies": {
     "lucide-react": "^0.294.0",

@@ -2,4 +2,9 @@ dist/
 node_modules/
 .env
 .env.local
+.env.production.local
 .DS_Store
+
+# Keep .env.development and .env.production as templates
+# These contain non-secret configuration
+# Override with .env.local for local development secrets

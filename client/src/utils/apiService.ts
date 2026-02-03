@@ -1,5 +1,5 @@
 // API Service for backend communication
-const API_BASE_URL = "http://localhost:8000";
+import { API_BASE_URL, EXTENSION_CLIENT_HEADER } from "../config";
 
 // Updated interface to match simplified backend AnalyzeRequest model
 export interface ComprehensivePrivacyData {
@@ -141,7 +141,7 @@ class ApiService {
     return this.makeRequest("/api/v1/auth", {
       method: "POST",
       headers: {
-        "X-Extension-Client": "privacy-inspector",
+        "X-Extension-Client": EXTENSION_CLIENT_HEADER,
         "User-Agent": "PrivInspect Extension v1.0",
       },
     });
@@ -160,7 +160,7 @@ class ApiService {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "X-Extension-Client": "privacy-inspector",
+        "X-Extension-Client": EXTENSION_CLIENT_HEADER,
         "User-Agent": "PrivInspect Extension v1.0",
       },
       body: JSON.stringify(data),
@@ -213,7 +213,7 @@ class ApiService {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-        "X-Extension-Client": "privacy-inspector",
+        "X-Extension-Client": EXTENSION_CLIENT_HEADER,
         "User-Agent": "PrivInspect Extension v1.0",
       },
       body: JSON.stringify(backendRequest),
