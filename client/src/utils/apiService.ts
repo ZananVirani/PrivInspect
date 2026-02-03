@@ -144,10 +144,6 @@ class ApiService {
         "X-Extension-Client": "privacy-inspector",
         "User-Agent": "PrivInspect Extension v1.0",
       },
-      body: JSON.stringify({
-        username: "demo_user",
-        password: "demo_password",
-      }),
     });
   }
 
