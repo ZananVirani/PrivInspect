@@ -57,24 +57,6 @@ app = FastAPI(
 # Add security middleware
 app.add_middleware(SecurityMiddleware)
 
-# Add request logging middleware for debugging
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Middleware to log all requests for debugging."""
-    if request.url.path == "/api/v1/analyze":
-        body = await request.body()
-        logger.info(f"=== ANALYZE REQUEST DEBUG ===")
-        logger.info(f"Method: {request.method}")
-        logger.info(f"Headers: {dict(request.headers)}")
-        logger.info(f"Body: {body.decode('utf-8') if body else 'No body'}")
-        # Recreate request with body for processing
-        async def receive():
-            return {"type": "http.request", "body": body}
-        request._receive = receive
-    
-    response = await call_next(request)
-    return response
-
 # Add CORS middleware with restricted origins
 app.add_middleware(
     CORSMiddleware,

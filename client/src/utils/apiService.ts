@@ -47,56 +47,6 @@ export interface ComprehensivePrivacyData {
   };
 }
 
-// Legacy interfaces for backward compatibility
-export interface PageAnalysisData {
-  page_url: string;
-  page_title: string;
-  cookies: string[];
-  raw_cookies?: Array<{
-    name: string;
-    value: string;
-    domain: string;
-  }>;
-  scripts: Array<{
-    src: string | null;
-    inline: boolean;
-    type: string;
-    content_preview?: string;
-  }>;
-  forms: Array<{
-    action: string;
-    method: string;
-    inputs: Array<{
-      type: string;
-      name: string;
-      required: boolean;
-    }>;
-  }>;
-  network_requests?: Array<{
-    url: string;
-    method: string;
-    type: string;
-    timestamp: string;
-  }>;
-  timestamp: string;
-}
-
-export interface BackendAnalysisRequest {
-  url: string;
-  cookies: Array<{
-    name: string;
-    value: string;
-    domain: string;
-  }>;
-  scripts: Array<{
-    content_preview?: string | null;
-    inline: boolean;
-    src?: string | null;
-    type?: string;
-  }>;
-  additional_data?: any;
-}
-
 export interface AuthResponse {
   access_token: string;
   token_type: string;
@@ -164,59 +114,6 @@ class ApiService {
         "User-Agent": "PrivInspect Extension v1.0",
       },
       body: JSON.stringify(data),
-    });
-  }
-
-  // Legacy method for backward compatibility
-  static async analyzePrivacy(
-    data: PageAnalysisData,
-    token: string,
-  ): Promise<any> {
-    if (!token) {
-      throw new Error("No authentication token available");
-    }
-
-    // Transform frontend data to backend format
-    const backendRequest: BackendAnalysisRequest = {
-      url: data.page_url,
-      cookies:
-        data.raw_cookies ||
-        data.cookies.map((cookieString) => {
-          // Parse cookie string "name=value" format if raw_cookies not available
-          const [name, ...valueParts] = cookieString.split("=");
-          const value = valueParts.join("=");
-          return {
-            name: name?.trim() || "",
-            value: value?.trim() || "",
-            domain: new URL(data.page_url).hostname,
-          };
-        }),
-      scripts: data.scripts
-        .filter((script) => script.src || script.inline) // Include both external and inline scripts
-        .map((script) => ({
-          src: script.src || "", // Backend expects src to be required, use empty string for inline
-          content_preview: script.inline
-            ? script.content_preview || null
-            : null,
-          inline: script.inline,
-          type: script.type,
-        })),
-      additional_data: {
-        page_title: data.page_title,
-        forms: data.forms,
-        network_requests: data.network_requests || [],
-      },
-    };
-
-    return this.makeRequest("/api/v1/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        "X-Extension-Client": EXTENSION_CLIENT_HEADER,
-        "User-Agent": "PrivInspect Extension v1.0",
-      },
-      body: JSON.stringify(backendRequest),
     });
   }
 

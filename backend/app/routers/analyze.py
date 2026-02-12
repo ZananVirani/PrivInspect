@@ -1,87 +1,14 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
-from fastapi.security import HTTPAuthorizationCredentials
 import logging
-from typing import Set
-from app.config import settings
 from app.middleware import validate_extension_headers
 from app.routers.auth import verify_jwt_token
 from app.models import AnalyzeRequest, AnalyzeResponse, PrivacyFeatures
-from app.security.extension_auth import validate_extension_request
-from app.ml_scoring import get_ml_score_for_page, domain_scoring_service, domain_scoring_service
-import json
-import re
+from app.ml_scoring import get_ml_score_for_page, domain_scoring_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Fallback known tracker domains for when ML service is not available
-FALLBACK_KNOWN_TRACKERS = {
-    # Analytics trackers
-    "google-analytics.com", "googletagmanager.com", "googleadservices.com", 
-    "doubleclick.net", "facebook.com", "facebook.net", "fbcdn.net", 
-    "connect.facebook.net",
-    # Ad networks
-    "googlesyndication.com", "adsystem.amazon.com", "amazon-adsystem.com", 
-    "adsymptotic.com",
-    # Social media trackers
-    "twitter.com", "t.co", "linkedin.com", "instagram.com",
-    # Other common trackers
-    "hotjar.com", "mixpanel.com", "segment.com", "amplitude.com", 
-    "fullstory.com", "loggly.com", "newrelic.com", "pingdom.net", 
-    "quantserve.com", "scorecardresearch.com", "comscore.com", 
-    "bing.com", "yahoo.com", "yandex.ru", "baidu.com",
-    # CDNs often used for tracking
-    "cdnjs.cloudflare.com", "ajax.googleapis.com", "maxcdn.bootstrapcdn.com"
-}
-
-# Tracker severity ranking (higher number = more severe)
-TRACKER_SEVERITY_SCORES = {
-    # Most severe - Major analytics and advertising trackers
-    "google-analytics.com": 10, "googletagmanager.com": 10, "doubleclick.net": 10,
-    "facebook.com": 9, "connect.facebook.net": 9, "facebook.net": 9,
-    "googlesyndication.com": 9, "googleadservices.com": 9,
-    
-    # High severity - Major ad networks and social trackers
-    "amazon-adsystem.com": 8, "adsystem.amazon.com": 8,
-    "twitter.com": 7, "linkedin.com": 7, "instagram.com": 7,
-    
-    # Medium-high severity - Analytics and behavior tracking
-    "hotjar.com": 6, "mixpanel.com": 6, "segment.com": 6, "amplitude.com": 6,
-    "fullstory.com": 6,
-    
-    # Medium severity - Performance and other trackers
-    "newrelic.com": 5, "pingdom.net": 5, "quantserve.com": 5,
-    "scorecardresearch.com": 5, "comscore.com": 5,
-    
-    # Lower severity - Search engines and others
-    "bing.com": 4, "yahoo.com": 4, "yandex.ru": 4, "baidu.com": 4,
-    "t.co": 3, "fbcdn.net": 3,
-    
-    # Lowest severity - CDNs with potential tracking
-    "cdnjs.cloudflare.com": 2, "ajax.googleapis.com": 2, "maxcdn.bootstrapcdn.com": 2
-}
-
-def get_tracker_severity_score(domain: str) -> int:
-    """Get severity score for a tracking domain (higher = more severe)."""
-    domain_lower = domain.lower()
-    
-    # Check exact match first
-    if domain_lower in TRACKER_SEVERITY_SCORES:
-        return TRACKER_SEVERITY_SCORES[domain_lower]
-    
-    # Check parent domain (for subdomains)
-    def get_parent_domain(d):
-        parts = d.split('.')
-        if len(parts) >= 2:
-            return '.'.join(parts[-2:])
-        return d
-    
-    parent = get_parent_domain(domain_lower)
-    if parent in TRACKER_SEVERITY_SCORES:
-        return TRACKER_SEVERITY_SCORES[parent]
-    
-    # Default severity for unknown trackers
-    return 1
+# Fallback constants removed - using only TrackerRadar data
 
 def is_known_tracker(domain: str) -> bool:
     """Check if a domain is a known tracker using TrackerRadar data with subdomain matching."""
@@ -125,21 +52,8 @@ def is_known_tracker(domain: str) -> bool:
     if check_trackerradar(parent_www):
         return True
     
-    # 6. Fallback to hardcoded list with same matching logic
-    def check_fallback(check_domain):
-        return check_domain in FALLBACK_KNOWN_TRACKERS
-    
-    # Check exact, www variants, and parent domain in fallback list
-    if (check_fallback(domain_lower) or 
-        (domain_lower.startswith('www.') and check_fallback(domain_lower[4:])) or
-        check_fallback(www_domain) or
-        (parent_domain != domain_lower and check_fallback(parent_domain)) or
-        check_fallback(parent_www)):
-        return True
-    
+    # Only use TrackerRadar data - no fallback mechanisms
     return False
-
-logger = logging.getLogger(__name__)
 
 def normalize_domain(domain: str) -> str:
     """
@@ -170,15 +84,6 @@ def normalize_domain(domain: str) -> str:
     parent_domain = '.'.join(parts[-2:])
     
     return parent_domain
-
-def extract_domain_from_url(url: str) -> str:
-    """Extract and normalize domain from URL safely."""
-    try:
-        from urllib.parse import urlparse
-        domain = urlparse(url).netloc.lower()
-        return normalize_domain(domain)
-    except:
-        return ""
 
 def extract_domain_keywords(domain: str) -> set:
     """Extract meaningful keywords from a domain for first-party detection."""
@@ -213,24 +118,6 @@ def is_third_party_domain(request_domain: str, page_domain: str) -> bool:
         return False
     
     # Additional keyword-based matching for related domains
-    page_keywords = extract_domain_keywords(clean_page)
-    request_keywords = extract_domain_keywords(clean_request)
-    
-    # If they share significant keywords, consider them first-party
-    for page_keyword in page_keywords:
-        if len(page_keyword) >= 4:  # Only consider meaningful keywords
-            for request_keyword in request_keywords:
-                if len(request_keyword) >= 4:
-                    # Check for exact match or one contains the other
-                    if (page_keyword == request_keyword or 
-                        page_keyword in request_keyword or 
-                        request_keyword in page_keyword):
-                        return False  # First-party
-    
-    # If no match, it's third-party
-    return True
-    
-    # Extract keywords from both domains for additional matching
     page_keywords = extract_domain_keywords(clean_page)
     request_keywords = extract_domain_keywords(clean_request)
     
@@ -506,7 +393,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
             
             logger.info(f"ML scoring successful. Got scores for {len(domain_score_lookup)} domains")
         else:
-            logger.info(f"ML scoring not available, will use fallback scores")
+            logger.info(f"ML scoring not available, will use default scores")
     except Exception as e:
         logger.warning(f"Failed to get domain scores: {e}")
     
@@ -517,8 +404,8 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
         if ml_score is not None:
             return ml_score  # Lower scores (more invasive) will be sorted first
         else:
-            # Fallback to severity score for domains without ML scores
-            return get_tracker_severity_score(domain) * -1  # Negate so higher severity comes first
+            # Use default score for domains without ML scores (only TrackerRadar data)
+            return 95.0  # Default middle score for unknown TrackerRadar domains
     
     sorted_known_trackers = sorted(
         known_trackers_for_response,
@@ -527,7 +414,7 @@ async def analyze_privacy_data(data: AnalyzeRequest) -> dict:
     
     # Now create the tracking domains with scores list
     for domain in sorted_known_trackers:
-        score = domain_score_lookup.get(domain, 95.0)  # Fallback to 95.0
+        score = domain_score_lookup.get(domain, 95.0)  # Default score for TrackerRadar domains without ML scores
         logger.debug(f"Looking up ML score for domain '{domain}': {score}")
         tracking_domains_with_scores.append({
             "domain": domain,
@@ -674,39 +561,10 @@ def compute_privacy_score(features: PrivacyFeatures, analyze_request: AnalyzeReq
     }
 
 
-def calculate_privacy_score(features: PrivacyFeatures) -> int:
-    """Calculate privacy score from 0-100 based on features."""
-    score = 100
-    
-    # Heavy penalty for tracking domains (this is the main privacy concern)
-    # Each tracking domain gets progressively more severe penalty
-    if features.num_tracking_domains > 0:
-        # Base penalty: 8 points per tracking domain
-        base_penalty = features.num_tracking_domains * 8
-        # Progressive penalty for many trackers (exponential growth)
-        if features.num_tracking_domains >= 10:
-            bonus_penalty = (features.num_tracking_domains - 9) * 5  # Extra 5 per tracker beyond 9
-        else:
-            bonus_penalty = 0
-        tracking_penalty = min(base_penalty + bonus_penalty, 60)  # Max -60 for tracking
-        score -= tracking_penalty
-    
-    # Moderate penalty for non-tracking third-party domains
-    non_tracking_domains = max(0, features.num_third_party_domains - features.num_tracking_domains)
-    score -= min(non_tracking_domains * 1, 15)  # Max -15 for non-tracking third parties
-    
-    # Other penalties
-    score -= features.has_analytics_global * 10  # -10 for analytics
-    score -= features.fingerprinting_flag * 15  # -15 for fingerprinting
-    score -= min(features.num_persistent_cookies * 2, 20)  # Max -20 for persistent cookies
-    
-    return max(score, 0)
-
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_website_privacy(
     analyze_data: AnalyzeRequest,
     request: Request,
-    # extension_validation: dict = Depends(validate_extension_request),  # Temporarily disabled
     _: dict = Depends(validate_extension_headers),
     token_payload: dict = Depends(verify_jwt_token)
 ):
