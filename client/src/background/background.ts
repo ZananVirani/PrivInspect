@@ -1,6 +1,6 @@
 // Function to determine if a network request is privacy-relevant
 function isPrivacyRelevantRequest(
-  details: chrome.webRequest.WebRequestBodyDetails
+  details: chrome.webRequest.WebRequestBodyDetails,
 ): boolean {
   const url = details.url.toLowerCase();
 
@@ -67,11 +67,6 @@ function isPrivacyRelevantRequest(
     return true;
   }
 
-  // Include third-party API calls (cross-origin requests)
-  if (details.type === "main_frame") {
-    return false; // Skip main page loads
-  }
-
   return false;
 }
 
@@ -119,7 +114,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     tabNetworkRequests.get(details.tabId)!.push(requestData);
   },
   { urls: ["<all_urls>"] },
-  ["requestBody"]
+  ["requestBody"],
 );
 
 // Clear requests when tab is closed
@@ -139,7 +134,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ status: "Background service worker is active" });
       break;
 
-    case "GET_COOKIES":
     case "GET_DETAILED_COOKIES":
       // Handle cookie requests from content script - supports all 10 features
       const url = message.url || message.domain;
@@ -165,18 +159,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const tabId = sender.tab?.id || message.tabId;
       const requests = tabNetworkRequests.get(tabId) || [];
       sendResponse({ requests: requests });
-      break;
-
-    case "CLEAR_TAB_DATA":
-      // Clear stored data for tab
-      const clearTabId = sender.tab?.id || message.tabId;
-      tabNetworkRequests.delete(clearTabId);
-      sendResponse({ status: "cleared" });
-      break;
-
-    case "ANALYZE_PAGE":
-      // Future: Connect to your FastAPI backend
-      sendResponse({ status: "Analysis queued" });
       break;
 
     default:

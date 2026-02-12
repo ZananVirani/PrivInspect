@@ -1,11 +1,6 @@
 // Import tracker detection utilities
 import { getDomainFromUrl } from "../utils/trackerDetection";
 
-// Track network requests (fallback for content script level tracking)
-const networkRequests: Array<{
-  url: string;
-}> = [];
-
 // Analytics globals detection for feature 7: has_analytics_global
 interface AnalyticsFlags {
   has_google_analytics: boolean;
@@ -40,36 +35,6 @@ let fingerprintingFlags: FingerprintingFlags = {
   detected_methods: [],
 };
 
-// Override fetch to monitor network requests (fallback)
-const originalFetch = window.fetch;
-window.fetch = function (...args) {
-  const url = args[0] instanceof Request ? args[0].url : (args[0] as string);
-
-  const requestData = {
-    url: url,
-  };
-
-  networkRequests.push(requestData);
-  return originalFetch.apply(this, args);
-};
-
-// Override XMLHttpRequest to monitor AJAX requests (fallback)
-const originalXHROpen = XMLHttpRequest.prototype.open;
-XMLHttpRequest.prototype.open = function (
-  method: string,
-  url: string | URL,
-  async: boolean = true,
-  username?: string | null,
-  password?: string | null,
-) {
-  const requestData = {
-    url: url.toString(),
-  };
-
-  networkRequests.push(requestData);
-  return originalXHROpen.call(this, method, url, async, username, password);
-};
-
 // Message handler for popup communication
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) {
@@ -78,39 +43,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   switch (message.type) {
-    case "PING":
-      sendResponse({ status: "PONG" });
-      break;
-
-    case "GET_PAGE_INFO":
-      // Return basic page info for popup display
-      // Get accurate counts from background script
-      Promise.all([
-        new Promise((resolve) => {
-          chrome.runtime.sendMessage(
-            {
-              type: "GET_DETAILED_COOKIES",
-              url: window.location.href,
-            },
-            (response) => resolve(response?.cookies?.length || 0),
-          );
-        }),
-        new Promise((resolve) => {
-          chrome.runtime.sendMessage(
-            { type: "GET_NETWORK_REQUESTS" },
-            (response) => resolve(response?.requests?.length || 0),
-          );
-        }),
-      ]).then(([cookieCount, webRequestCount]) => {
-        const scriptCount = document.querySelectorAll("script").length;
-        sendResponse({
-          cookieCount,
-          scriptCount,
-          webRequestCount,
-        });
-      });
-      return true; // Keep message channel open for async response
-
     case "COLLECT_PRIVACY_DATA":
       // This will be implemented to collect comprehensive data
       collectComprehensivePrivacyData()
@@ -121,16 +53,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ error: "Failed to collect privacy data" });
         });
       return true;
-
-    case "GET_WEB_REQUEST_COUNT":
-      // Get comprehensive network request data from background script
-      chrome.runtime.sendMessage(
-        { type: "GET_NETWORK_REQUESTS" },
-        (response) => {
-          sendResponse({ webRequestCount: response?.requests?.length || 0 });
-        },
-      );
-      return true; // Keep message channel open for async response
 
     default:
       sendResponse({ error: "Unknown message type" });
