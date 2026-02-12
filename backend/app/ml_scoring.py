@@ -5,10 +5,9 @@ This module adds ML-based domain scoring to the existing FastAPI application.
 It loads a pre-trained domain risk model and provides endpoints for scoring domains.
 """
 
-import os
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 import logging
 
 import joblib
@@ -17,7 +16,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 # Import existing models from the main app
-from app.models import AnalyzeRequest
+from app.models import AnalyzeRequest, PrivacyFeatures
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +300,6 @@ async def score_domains(request: Union[DomainScoringRequest, AnalyzeRequest]):
 def initialize_domain_scoring():
     """Initialize domain scoring service at startup"""
     # Model files are in the parent directory from backend/
-    import os
     backend_dir = Path(__file__).parent.parent  # Go up from backend/app/ to backend/
     project_root = backend_dir.parent  # Go up from backend/ to project root
     
@@ -317,7 +315,7 @@ def initialize_domain_scoring():
     else:
         logger.warning("Domain scoring service failed to load - will use fallback scores")
 
-def get_ml_score_for_page(features: Union[AnalyzeRequest, "PrivacyFeatures"]) -> float:
+def get_ml_score_for_page(features: Union[AnalyzeRequest, PrivacyFeatures]) -> float:
     """
     Get ML score for a page (for integration with existing scoring pipeline)
     Returns aggregated ML score that can be used in compute_privacy_score

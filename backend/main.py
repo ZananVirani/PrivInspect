@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -9,7 +9,6 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 import uvicorn
-import json
 
 from app.config import settings
 from app.routers import auth, analyze
@@ -79,19 +78,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors and log detailed information."""
-    try:
-        # Try to get the request body for debugging
-        body = b''
-        if hasattr(request, '_body'):
-            body = request._body
-        
-        logger.error(f"=== VALIDATION ERROR ===")
-        logger.error(f"Request URL: {request.url}")
-        logger.error(f"Request body: {body.decode('utf-8') if body else 'No body available'}")
-        logger.error(f"Validation errors: {exc.errors()}")
-        logger.error(f"Raw validation details: {json.dumps(exc.errors(), indent=2)}")
-    except Exception as log_error:
-        logger.error(f"Error while logging validation error: {log_error}")
+    logger.error(f"Validation error for {request.url}: {exc.errors()}")
     
     return JSONResponse(
         status_code=422,

@@ -73,10 +73,6 @@ class AnalyzeRequest(BaseModel):
     
     # Pre-computed features for validation (optional)
     privacy_features: Optional[PrivacyFeatures] = None
-    
-    # Legacy fields for backward compatibility
-    cookies: List[str] = []  # Simple cookie strings
-    additional_data: Optional[Dict[str, Any]] = None
 
 class AnalyzeResponse(BaseModel):
     """Enhanced response model for privacy analysis results."""
@@ -86,7 +82,6 @@ class AnalyzeResponse(BaseModel):
     scripts_analyzed: int
     
     # New comprehensive analysis fields
-    analysis_id: Optional[str] = None
     
     # Feature extraction results (what backend computed)
     computed_features: Optional[PrivacyFeatures] = None
@@ -106,14 +101,3 @@ class AnalyzeResponse(BaseModel):
     
     # Privacy assessment
     privacy_level: Optional[str] = None  # "low", "medium", "high"
-
-class AuthResponse(BaseModel):
-    """Response model for authentication endpoint."""
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int = 900  # 15 minutes
-
-class ErrorResponse(BaseModel):
-    """Standard error response model."""
-    detail: str
-    error_code: Optional[str] = None

@@ -1,5 +1,4 @@
 import os
-import json
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -59,7 +58,6 @@ class Settings(BaseSettings):
     REDIS_URL: str = get_secret("REDIS_URL", "redis://localhost:6379")
     
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
     AUTH_RATE_LIMIT: int = int(os.getenv("AUTH_RATE_LIMIT", "10"))
     ANALYZE_RATE_LIMIT: int = int(os.getenv("ANALYZE_RATE_LIMIT", "60"))
