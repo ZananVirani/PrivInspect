@@ -2,11 +2,6 @@
 data/
 tracker-radar/
 
-# ML Models (auto-generated)
-models/
-*.pkl
-*.csv
-
 # Python
 __pycache__/
 *.py[cod]

@@ -10,13 +10,12 @@ Usage:
     python scripts/train_domain_model.py --out-model-path ./models/custom_model.pkl
 """
 
-import os
 import sys
 import json
 import argparse
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
