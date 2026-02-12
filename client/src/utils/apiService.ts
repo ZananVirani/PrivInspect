@@ -49,16 +49,6 @@ export interface ComprehensivePrivacyData {
 
 export interface AuthResponse {
   access_token: string;
-  token_type: string;
-  expires_in?: number;
-}
-
-export interface AnalysisResponse {
-  analysis_id?: string;
-  privacy_score?: number;
-  threats?: string[];
-  recommendations?: string[];
-  error?: string;
 }
 
 class ApiService {
@@ -128,14 +118,6 @@ class ApiService {
   static async storeToken(token: string): Promise<void> {
     return new Promise((resolve) => {
       chrome.storage.local.set({ authToken: token }, () => {
-        resolve();
-      });
-    });
-  }
-
-  static async clearToken(): Promise<void> {
-    return new Promise((resolve) => {
-      chrome.storage.local.remove(["authToken"], () => {
         resolve();
       });
     });
