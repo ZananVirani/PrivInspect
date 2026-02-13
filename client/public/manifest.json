@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Privacy Inspector Demo",
+  "name": "PrivInspect",
   "version": "1.0",
-  "description": "Extension that analyzes webpages for domains that are known to be involved in tracking, providing an overall privacy score.",
+  "description": "Analyzes webpages for known tracking behaviors and provides a privacy score.",
 
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "Privacy Inspector Demo",
+    "default_title": "PrivInspect",
     "default_icon": {
       "16": "icons/fraud_icon_16.webp",
       "32": "icons/fraud_icon_32.webp",

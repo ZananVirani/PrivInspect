@@ -51,6 +51,7 @@ function App() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [showLongLoadingMessage, setShowLongLoadingMessage] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
     null,
   );
@@ -106,9 +107,17 @@ function App() {
   };
 
   const authenticateAndAnalyze = async () => {
+    let timeoutId: NodeJS.Timeout | null = null;
+
     try {
       setLoading(true);
       setAnalysisError(null);
+      setShowLongLoadingMessage(false);
+
+      // Set timeout to show long loading message after 5 seconds
+      timeoutId = setTimeout(() => {
+        setShowLongLoadingMessage(true);
+      }, 3000);
 
       // Get or refresh JWT token
       const token = await getValidToken();
@@ -153,7 +162,12 @@ function App() {
           " Please Refresh and Try Again.",
       );
     } finally {
+      // Clear timeout and reset states
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       setLoading(false);
+      setShowLongLoadingMessage(false);
     }
   };
 
@@ -294,6 +308,17 @@ function App() {
             {loading ? "Analyzing Privacy..." : "Analyze Privacy"}
           </button>
         </div>
+
+        {/* Long Loading Message */}
+        {showLongLoadingMessage && loading && (
+          <div className="mb-6 -mt-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-xs text-amber-700 text-center leading-relaxed">
+              Please continue waiting, this could take up to 1 minute (my server
+              is waking up from a nap of inactivity). Any subsequent analyses
+              will be much faster, I promise :)
+            </p>
+          </div>
+        )}
 
         {/* Privacy Score Section - Only show if we have analysis results */}
         {analysisResult && (
