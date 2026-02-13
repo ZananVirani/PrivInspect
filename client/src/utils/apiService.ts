@@ -21,14 +21,6 @@ export interface ComprehensivePrivacyData {
     domain?: string;
   }>;
 
-  network_requests: Array<{
-    url: string;
-    method: string;
-    type: string;
-    timestamp: string;
-    domain?: string;
-  }>;
-
   // Detection flags
   analytics_flags?: {
     has_google_analytics: boolean;
