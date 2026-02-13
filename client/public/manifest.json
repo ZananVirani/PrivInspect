@@ -30,13 +30,13 @@
     }
   ],
 
-  "permissions": ["cookies", "storage", "webRequest", "tabs"],
+  "permissions": ["cookies", "storage", "tabs"],
 
   "host_permissions": ["<all_urls>"],
 
   "web_accessible_resources": [
     {
-      "resources": ["src/content/content.ts", "assets/*"],
+      "resources": ["icons/*"],
       "matches": ["<all_urls>"]
     }
   ]

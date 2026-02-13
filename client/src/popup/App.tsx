@@ -185,7 +185,7 @@ function App() {
   };
 
   const checkPermissions = async (): Promise<boolean> => {
-    const requiredPermissions = ["cookies", "storage", "webRequest", "tabs"];
+    const requiredPermissions = ["cookies", "storage", "tabs"];
 
     const hostPermissions = ["<all_urls>"];
 
@@ -243,7 +243,7 @@ function App() {
   };
 
   const requestPermissions = async () => {
-    const requiredPermissions = ["cookies", "storage", "webRequest", "tabs"];
+    const requiredPermissions = ["cookies", "storage", "tabs"];
 
     const hostPermissions = ["<all_urls>"];
 

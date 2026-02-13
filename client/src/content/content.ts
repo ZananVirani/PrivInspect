@@ -1,6 +1,156 @@
 // Import tracker detection utilities
 import { getDomainFromUrl } from "../utils/trackerDetection";
 
+// Track network requests at content script level (replacement for webRequest)
+const networkRequests: Array<{
+  url: string;
+  method: string;
+  type: string;
+  timestamp: string;
+}> = [];
+
+// Function to determine if a network request is privacy-relevant
+function isPrivacyRelevantRequest(url: string): boolean {
+  const urlLower = url.toLowerCase();
+
+  // Skip chrome:// and extension:// URLs
+  if (
+    urlLower.startsWith("chrome://") ||
+    urlLower.startsWith("chrome-extension://")
+  ) {
+    return false;
+  }
+
+  // Skip common static resources that don't provide privacy insights
+  const staticExtensions = [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".bmp",
+    ".css",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".mp4",
+    ".webm",
+    ".mp3",
+    ".wav",
+    ".ogg",
+  ];
+
+  if (staticExtensions.some((ext) => urlLower.includes(ext))) {
+    return false;
+  }
+
+  // Include requests to known tracking/analytics domains
+  const trackingKeywords = [
+    "analytics",
+    "tracking",
+    "tracker",
+    "ads",
+    "doubleclick",
+    "googletagmanager",
+    "facebook",
+    "twitter",
+    "linkedin",
+    "hotjar",
+    "mixpanel",
+    "segment",
+    "amplitude",
+    "intercom",
+  ];
+
+  if (trackingKeywords.some((keyword) => urlLower.includes(keyword))) {
+    return true;
+  }
+
+  return true; // Default to including requests for analysis
+}
+
+// Override fetch to monitor network requests
+const originalFetch = window.fetch;
+window.fetch = function (...args) {
+  const url = args[0] instanceof Request ? args[0].url : (args[0] as string);
+
+  if (isPrivacyRelevantRequest(url)) {
+    const requestData = {
+      url: url,
+      method: args[1]?.method || "GET",
+      type: "xmlhttprequest",
+      timestamp: new Date().toISOString(),
+    };
+    networkRequests.push(requestData);
+  }
+
+  return originalFetch.apply(this, args);
+};
+
+// Override XMLHttpRequest to monitor AJAX requests
+const originalXHROpen = XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open = function (
+  method: string,
+  url: string | URL,
+  async: boolean = true,
+  username?: string | null,
+  password?: string | null,
+) {
+  const urlStr = url.toString();
+
+  if (isPrivacyRelevantRequest(urlStr)) {
+    const requestData = {
+      url: urlStr,
+      method: method,
+      type: "xmlhttprequest",
+      timestamp: new Date().toISOString(),
+    };
+    networkRequests.push(requestData);
+  }
+
+  return originalXHROpen.call(this, method, url, async, username, password);
+};
+
+// Monitor script loading
+const originalCreateElement = document.createElement;
+document.createElement = function (tagName: string) {
+  const element = originalCreateElement.call(this, tagName);
+
+  if (tagName.toLowerCase() === "script") {
+    const script = element as HTMLScriptElement;
+    const originalSrcSetter = Object.getOwnPropertyDescriptor(
+      HTMLScriptElement.prototype,
+      "src",
+    )?.set;
+
+    if (originalSrcSetter) {
+      Object.defineProperty(script, "src", {
+        get() {
+          return this.getAttribute("src");
+        },
+        set(value: string) {
+          if (value && isPrivacyRelevantRequest(value)) {
+            const requestData = {
+              url: value,
+              method: "GET",
+              type: "script",
+              timestamp: new Date().toISOString(),
+            };
+            networkRequests.push(requestData);
+          }
+          return originalSrcSetter.call(this, value);
+        },
+        configurable: true,
+      });
+    }
+  }
+
+  return element;
+};
+
 // Analytics globals detection for feature 7: has_analytics_global
 interface AnalyticsFlags {
   has_google_analytics: boolean;
@@ -129,15 +279,11 @@ async function collectComprehensivePrivacyData() {
   if (fingerprintingFlags.font_fingerprinting)
     fingerprintingFlags.detected_methods.push("font");
 
-  // Get network requests from background script and filter for most privacy-relevant ones
-  const networkRequestsResponse = await new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "GET_NETWORK_REQUESTS" }, (response) => {
-      resolve(response?.requests || []);
-    });
-  });
+  // Get network requests from content script monitoring instead of background
+  const networkRequestsData = [...networkRequests];
 
   // Further filter and prioritize requests for backend analysis
-  const filteredRequests = (networkRequestsResponse as any[]).filter((req) => {
+  const filteredRequests = networkRequestsData.filter((req) => {
     const url = req.url.toLowerCase();
 
     // Prioritize tracking and analytics requests
