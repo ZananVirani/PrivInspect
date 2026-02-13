@@ -4,15 +4,17 @@
   "version": "1.0",
   "description": "Analyzes webpages for known tracking behaviors and provides a privacy score.",
 
+  "icons": {
+    "16": "icons/fraud_icon_16.png",
+    "32": "icons/fraud_icon_32.png",
+    "48": "icons/fraud_icon_48.png",
+    "128": "icons/fraud_icon_128.png"
+  },
+
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_title": "PrivInspect",
-    "default_icon": {
-      "16": "icons/fraud_icon_16.webp",
-      "32": "icons/fraud_icon_32.webp",
-      "48": "icons/fraud_icon_48.webp",
-      "128": "icons/fraud_icon_128.webp"
-    }
+    "default_icon": "icons/fraud_icon_128.png"
   },
 
   "background": {
