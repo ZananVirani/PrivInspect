@@ -397,8 +397,6 @@ def main():
                        help='Path to TrackerRadar repository')
     parser.add_argument('--out-model-path', default='./models/domain_risk_model.pkl',
                        help='Output path for trained model')
-    parser.add_argument('--clone', action='store_true',
-                       help='Clone TrackerRadar repository if it doesn\'t exist')
     
     args = parser.parse_args()
     
@@ -406,13 +404,23 @@ def main():
     model_dir = Path(args.out_model_path).parent
     model_dir.mkdir(parents=True, exist_ok=True)
     
-    # Initialize parser
-    parser_obj = TrackerRadarParser(args.tracker_radar_path)
+    # Auto-create data directory and clone TrackerRadar if it doesn't exist
+    tracker_radar_path = Path(args.tracker_radar_path)
+    data_dir = tracker_radar_path.parent
     
-    # Clone repository if requested
-    if args.clone:
+    # Create data directory if it doesn't exist
+    if not data_dir.exists():
+        print(f"Creating data directory: {data_dir}")
+        data_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Clone TrackerRadar repository if it doesn't exist
+    if not tracker_radar_path.exists() or not any(tracker_radar_path.iterdir()):
+        print("TrackerRadar repository not found. Cloning automatically...")
+        parser_obj = TrackerRadarParser(args.tracker_radar_path)
         if not parser_obj.clone_tracker_radar(args.tracker_radar_path):
             sys.exit(1)
+    else:
+        parser_obj = TrackerRadarParser(args.tracker_radar_path)
     
     # Extract features
     print("Extracting domain features...")
