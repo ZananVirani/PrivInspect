@@ -647,6 +647,13 @@ function App() {
                 </p>
 
                 <p>
+                  <strong className="text-gray-800">Permission Usage:</strong>{" "}
+                  This extension uses minimal permissions (cookies, storage,
+                  tabs) solely for privacy analysis. No personal data is
+                  transmitted or stored externally.
+                </p>
+
+                <p>
                   <strong className="text-gray-800">Not Legal Advice:</strong>{" "}
                   For informational purposes only. Always review website privacy
                   policies for complete information.
