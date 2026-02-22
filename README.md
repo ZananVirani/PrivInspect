@@ -17,8 +17,8 @@ PrivInspect is a comprehensive privacy analysis tool that combines machine learn
 PrivInspect/
 ├── client/          # Chrome Extension (React + TypeScript)
 ├── backend/         # FastAPI Server (Python)
-├── notebooks/       # ML Training Pipeline (Jupyter)
-├── scripts/         # Standalone Training Scripts
+├── scripts/         # ML Training Scripts
+├── models/          # Trained ML Models
 └── README.md        # This file
 ```
 
@@ -58,26 +58,21 @@ cp .env.example .env
 
 ### 3. Train ML Model (Required)
 
-The backend requires trained ML models. Run the complete training pipeline:
+The backend requires trained ML models. Run the training script:
 
 ```bash
-cd notebooks
+cd scripts
 
-# Open Jupyter notebook
-jupyter notebook domain_ranking_model.ipynb
-
-# OR use Python directly
-python -m jupyter notebook domain_ranking_model.ipynb
+# Train model (automatically downloads TrackerRadar data)
+python train_domain_model.py
 ```
 
-**Run all 6 steps in the notebook:**
+**The script will automatically:**
 
-1. Install dependencies automatically
-2. Setup project structure and download tools
-3. Download TrackerRadar data (~51,198 domains)
-4. Define advanced feature extraction
-5. Process all domain data
-6. Train ML model and save for production
+1. Create data/ directory if it doesn't exist
+2. Clone TrackerRadar repository (~51,198 domains)
+3. Extract domain features
+4. Train ML model and save for production
 
 **Expected runtime:** 20-25 minutes for complete training
 
@@ -98,8 +93,11 @@ cd client
 # Install dependencies
 npm install
 
-# Build extension
-npm run build
+# Build extension for development
+npm run build:extension
+
+# Build extension for production
+npm run build:extension:prod
 
 # The built extension will be in client/dist/
 ```
@@ -130,17 +128,10 @@ npm run build
 
 ### Backend Development
 
-```bash
+````bash
 cd backend
 source .venv/bin/activate
 python3 main.py
-
-# Run tests
-python -m pytest
-
-# API Documentation available at:
-# http://localhost:8000/docs
-```
 
 ### Frontend Development
 
@@ -148,21 +139,17 @@ python -m pytest
 cd client
 
 # Development build with hot reload
-npm run dev
+npm run dev:extension
 
 # Build for production
-npm run build
-```
+npm run build:extension:prod
+````
 
 ### Retraining ML Model
 
 To retrain with latest TrackerRadar data:
 
 ```bash
-cd notebooks
-# Run all cells in domain_ranking_model.ipynb
-
-# OR use the standalone script:
 cd scripts
 python train_domain_model.py
 ```
@@ -172,17 +159,15 @@ python train_domain_model.py
 ### Core Analysis
 
 - `POST /api/v1/analyze` - Analyze webpage privacy
-- `GET /health` - Health check
 
 ### ML Model
 
-- `GET /api/v1/model/info` - Model information
-- `POST /api/v1/model/predict` - Direct domain predictions
+- `GET /api/v1/info` - Model information
+- `POST /api/v1/score_domains` - Direct domain predictions
 
 ### Authentication
 
-- `POST /api/v1/auth/token` - Get JWT token
-- `POST /api/v1/auth/refresh` - Refresh token
+- `POST /api/v1/auth` - Get JWT token
 
 ### Chrome Extension
 
@@ -224,23 +209,27 @@ PrivInspect/
 ├── backend/
 │   ├── app/
 │   │   ├── routers/       # API endpoints
-│   │   ├── models/        # Data models
+│   │   │   ├── analyze.py # Privacy analysis
+│   │   │   └── auth.py    # Authentication
+│   │   ├── models.py      # Data models
 │   │   ├── ml_scoring.py  # ML integration
-│   │   └── auth.py        # Authentication
+│   │   ├── config.py      # Configuration
+│   │   └── middleware.py  # Security middleware
 │   ├── main.py            # FastAPI app
 │   └── requirements.txt   # Python dependencies
 ├── client/
 │   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── services/      # API services
-│   │   └── types/         # TypeScript types
+│   │   ├── background/    # Service worker
+│   │   ├── content/       # Content scripts
+│   │   ├── popup/         # Extension popup UI
+│   │   ├── utils/         # Utilities
+│   │   └── config/        # Configuration
 │   ├── public/            # Extension assets
-│   ├── package.json       # Node.js dependencies
-│   └── manifest.json      # Extension manifest
-├── notebooks/
-│   └── domain_ranking_model.ipynb  # Complete ML pipeline
+│   │   └── manifest.json  # Extension manifest
+│   └── package.json       # Node.js dependencies
+├── models/                # Trained ML models
 └── scripts/
-    └── train_domain_model.py       # Standalone training
+    └── train_domain_model.py       # ML training script
 ```
 
 ## Troubleshooting
@@ -261,6 +250,6 @@ PrivInspect/
 
 - **Download failures:** Check internet connection
 - **Memory errors:** Ensure 4GB+ RAM available
-- **Import errors:** Run Step 1 in notebook to install dependencies
+- **Import errors:** Ensure Python dependencies are installed
 
-**Note:** The ML model training is required for the system to function properly. The notebook provides a completely self-contained setup that works on any fresh device.
+**Note:** The ML model training is required for the system to function properly. The training script automatically handles data download and model training.
